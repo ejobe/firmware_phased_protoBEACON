@@ -43,9 +43,11 @@ entity data_manager is
 		
 		pps_latch_reg_i			:	in		std_logic_vector(1 downto 0);
 		pps_latched_timestamp_o	:	out	std_logic_vector(47 downto 0);
+		dynamic_beammask_i		:	in		std_logic_vector(define_num_beams-1 downto 0);
 
 		--//waveform data	
 		wfm_data_i				:	in	 	full_data_type;
+		wfm_data_filt_i		:	in	 	full_data_type;
 		running_scalers_i		:  in 	std_logic_vector(23 downto 0);
 		data_ram_at_current_adr_o :  out	ram_adr_chunked_data_type);
 		
@@ -197,7 +199,10 @@ PreTrigBlock : for i in 0 to 7 generate
 	port map(
 		rst_i		=> rst_i,
 		clk_i		=>	clk_i,
+		clk_iface_i => clk_iface_i,
 		pretrig_sel_i =>	internal_pre_trig_window_select,
+		reg_i => reg_i,
+		data_aux_i => wfm_data_filt_i(i),
 		data_i	=>	wfm_data_i(i),
 		data_o	=>	internal_wfm_data(i));
 end generate;
@@ -615,6 +620,7 @@ port map(
 	current_buffer_i	=> internal_current_buffer,
 	pps_latch_reg_i	=> pps_latch_reg_i,
 	latched_timestamp_o=> pps_latched_timestamp_o,
+	dynamic_beammask_i=> dynamic_beammask_i,
 	reg_i				 	=> reg_i,		
 	event_header_o	 	=> event_meta_o);
 ------------------------------------------------------------------------------------------------------------------------------

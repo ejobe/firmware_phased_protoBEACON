@@ -51,20 +51,20 @@ type two_chan_address_type is array	(1 downto 0) of std_logic_vector(define_ram_
 type full_data_address_type	is array	(7 downto 0) of std_logic_vector(define_data_ram_depth-1 downto 0);	
 type aux_data_link_type is array (1 downto 0) of std_logic_vector(7 downto 0);
 
-type event_metadata_type is array(24 downto 0) of std_logic_vector(23 downto 0);
+type event_metadata_type is array(14 downto 0) of std_logic_vector(23 downto 0);
 
 type rx_data_delay_type is array (7 downto 0) of std_logic_vector(3 downto 0); --//delay range for rx data to align ADCs
 type buffered_data_type is array (7 downto 0) of std_logic_vector(2*define_ram_width-1 downto 0);
 
 --//registers
-type register_array_type is array (127 downto 0) 
+type register_array_type is array (255 downto 0) 
 	of std_logic_vector(define_register_size-define_address_size-1 downto 0); --//8 bit address, 24 bit data
 
 --////////////////////////////////////////////////
 --///////////////////////////////////////////////////////////////////////////////////////////////////
 --//FIRMWARE INFORMATION
-constant firmware_version 	: std_logic_vector(define_register_size-define_address_size-1 downto 0) := x"000001";
-constant firmware_date 		: std_logic_vector(define_register_size-define_address_size-1 downto 0) := x"7e2" & x"7" & x"08";
+constant firmware_version 	: std_logic_vector(define_register_size-define_address_size-1 downto 0) := x"000006";
+constant firmware_date 		: std_logic_vector(define_register_size-define_address_size-1 downto 0) := x"7e2" & x"8" & x"17";
 --///////////////////////////////////////////////////////////////////////////////////////////////////
 --///////////////////////////////////////////////
 
@@ -128,7 +128,7 @@ constant base_adrs_adc_cntrl		:	integer := 54;
 
 constant base_adrs_rdout_cntrl 	:  integer := 64;
 
-constant base_adrs_trig_thresh	:	integer := 86;
+constant base_adrs_trig_thresh	:	integer := 129;
 	
 end register_map;
 	

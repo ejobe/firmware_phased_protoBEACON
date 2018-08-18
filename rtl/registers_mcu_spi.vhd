@@ -42,6 +42,7 @@ entity registers_mcu_spi is
 		remote_upgrade_epcq_data_i    :  in		std_logic_vector(31 downto 0);
 		remote_upgrade_status_i			:  in		std_logic_vector(23 downto 0);
 		pps_timestamp_to_read_i			:	in		std_logic_vector(47 downto 0);
+		dynamic_mask_i						:  in		std_logic_vector(define_num_beams-1 downto 0);
 		--////////////////////////////
 		write_reg_i		:	in		std_logic_vector(define_register_size-1 downto 0); --//input data
 		write_rdy_i		:	in		std_logic; --//data ready to be written in spi_slave
@@ -191,19 +192,31 @@ begin
 		registers_io(48) <= x"0000FF";   --// channel masking [48]
 		registers_io(79) <= x"000000";   --// polarization select for beamforming [79]
 		registers_io(80) <= x"FFFFFF";   --// beam masks for trigger [80]
-		registers_io(81) <= x"0001FF";   --// trig holdoff - lower 16 bits [81]
+		registers_io(81) <= x"0000FF";   --// trig holdoff - lower 16 bits [81]
 		registers_io(82) <= x"000300";	--// phased trigger/beam enables [82]
 		registers_io(75) <= x"00FF00";   --// external trigger input configuration [75]
 		registers_io(83) <= x"000C03";   --// external trigger output configuration [83]
 		registers_io(84) <= x"000000";   --// enable phased trigger to data manager (LSB=1 to enable)
 		registers_io(85) <= x"000000";   --// trigger verification mode (LSB=1 to enable)
 		
-		registers_io(108) <= x"000000"; --//write LSB to update internal temp sensor; LSB+1 to enable[108]
+		registers_io(88) <= x"000000";   --// timestamp mode select
+		
+		registers_io(108) <= x"000000";  --//write LSB to update internal temp sensor; LSB+1 to enable[108]
+		
+		--//filtering
+		registers_io(90) <= x"000001"; --// enable low pass to trigger path with LSB
+		registers_io(91) <= x"000005"; --// post-filter bit shift (low 8 bits)
+		
+		--//dynamic masking
+		registers_io(93) <= x"000105"; --// dynamic beam masking register
+		registers_io(94) <= x"000040"; --// dynamic beam masking register - lower 8 bits mask holdoff
 
 		--//trigger thresholds:
-		registers_io(base_adrs_trig_thresh+0) <= x"0FFFFF";   --//[86] trigger threshold value 
-		registers_io(base_adrs_trig_thresh+1) <= x"000000";   --//[87] triger threshold beam number
-
+		--registers_io(base_adrs_trig_thresh+0) <= x"0FFFFF";   --//[86] trigger threshold value 
+		--registers_io(base_adrs_trig_thresh+1) <= x"000000";   --//[87] triger threshold beam number
+		for i in 0 to define_num_beams-1 loop
+			registers_io(i+base_adrs_trig_thresh) <= x"0FFFFF";
+		end loop;
 		
 		--//remote upgrade registers
 		registers_io(110) <= x"000000"; --//LSB = 1 to enable remote upgrade block
@@ -247,12 +260,12 @@ begin
 		--//------------------------------------------------------------------------------
 		
 		--//handle sync event, falling edge condition of internal_sync_reg (i.e. the sync is 'released')
-		if internal_sync_reg = "10" then
-			registers_io(to_integer(unsigned(internal_sync_register(31 downto 24)))) <= internal_sync_register(23 downto 0);
-			address_o <= internal_sync_register(31 downto 24);
+		--if internal_sync_reg = "10" then
+		--	registers_io(to_integer(unsigned(internal_sync_register(31 downto 24)))) <= internal_sync_register(23 downto 0);
+		--	address_o <= internal_sync_register(31 downto 24);
 		
 		--//read register command
-		elsif write_rdy_i = '1' and write_reg_i(31 downto 24) = x"6D" then
+		if write_rdy_i = '1' and write_reg_i(31 downto 24) = x"6D" then
 			read_reg_o <=  write_reg_i(7 downto 0) & registers_io(to_integer(unsigned(write_reg_i(7 downto 0))));
 			address_o <= x"47";  --//initiate a read	
 		
@@ -274,20 +287,20 @@ begin
 			address_o <= x"47";  --//initiate a read
 			
 		--//catch a sync command, if master board. 
-		elsif write_rdy_i = '1' and write_reg_i(31 downto 24) = x"27" then
-			internal_sync_master <= write_reg_i(0) and FIRMWARE_DEVICE;
-			address_o <= (others=>'0');
+		--elsif write_rdy_i = '1' and write_reg_i(31 downto 24) = x"27" then
+		--	internal_sync_master <= write_reg_i(0) and FIRMWARE_DEVICE;
+		--	address_o <= (others=>'0');
 			
 		--//write register value
 		elsif write_rdy_i = '1' and write_reg_i(31 downto 24) > x"27" then  --//read/write registers
 			--//if sync high, don't immediatly write the register value:
-			if internal_sync_reg = "11" then
-				internal_sync_register <= write_reg_i;
-				address_o <= (others=>'0');
-			else
+			--if internal_sync_reg = "11" then
+			--	internal_sync_register <= write_reg_i;
+			--	address_o <= (others=>'0');
+			--else
 				registers_io(to_integer(unsigned(write_reg_i(31 downto 24)))) <= write_reg_i(23 downto 0);
 				address_o <= write_reg_i(31 downto 24);
-			end if;
+			--end if;
 
 		else
 			address_o <= x"00";
@@ -297,8 +310,10 @@ begin
 			registers_io(7) <= status_data_manager_i; 
 			registers_io(8) <= status_adc_i; 
 			registers_io(9) <= status_data_manager_latched_i; 
+			registers_io(34)<= dynamic_mask_i;
+			
 			--//assign event meta data
-			for j in 0 to 24 loop
+			for j in 0 to 14 loop
 				registers_io(j+10) <= event_metadata_i(j);
 			end loop;
 			--////////////////////////////////////////////////

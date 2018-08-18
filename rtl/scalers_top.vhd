@@ -42,13 +42,14 @@ end scalers_top;
 
 architecture rtl of scalers_top is
 
-constant num_scalers : integer := 3*define_num_beams + 3;  	--// 1Hz scalers, 1Hz gated scalers, 100mHz scalers
+constant num_scalers : integer := 3*define_num_beams + 3 + 1;  	--// 1Hz scalers, 1Hz gated scalers, 100mHz scalers
 																				--// includes scalers for each beam, and a global scaler
+																				--//+1 makes it an even number
 type scaler_array_type is array(num_scalers-1 downto 0) of std_logic_vector(scaler_width-1 downto 0);
 
 signal internal_scaler_array : scaler_array_type;
 signal latched_scaler_array : scaler_array_type; --//assigned after refresh pulse
-
+-------
 component scaler
 port(
 	rst_i 		: in 	std_logic;
@@ -62,6 +63,8 @@ begin
 -------------------------------------------------------------------------------
 proc_assign_scalers_to_metadata : running_scalers_o <= internal_scaler_array(2*(define_num_beams+1)) & internal_scaler_array(0);
 -------------------------------------------------------------------------------
+internal_scaler_array(num_scalers-1) <= (others=>'0');
+
 --//scaler 1
 xTRIGSCALER : scaler
 	port map(

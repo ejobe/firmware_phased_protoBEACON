@@ -23,8 +23,11 @@ entity pretrigger_window is
 	port(
 		rst_i					:	in	 std_logic;
 		clk_i					:  in	 std_logic;
+		clk_iface_i			:	in  std_logic;
 		pretrig_sel_i		:	in	 std_logic_vector(3 downto 0);
+		reg_i					:	in  register_array_type;
 		data_i				:	in	 std_logic_vector(127 downto 0);
+		data_aux_i			:	in	 std_logic_vector(127 downto 0);
 		data_o				:	out std_logic_vector(127 downto 0));
 	end pretrigger_window;
 	
@@ -55,8 +58,28 @@ architecture rtl of pretrigger_window is
 	signal internal_data_buffer_pickoff_8 : std_logic_vector(127 downto 0);
 
 	signal internal_data_pipe : std_logic_vector(127 downto 0);
+	
+	signal internal_write_filt_data : std_logic := '0';
+	
+	component signal_sync is
+	port
+		(clkA			: in	std_logic;
+		clkB			: in	std_logic;
+		SignalIn_clkA	: in	std_logic;
+		SignalOut_clkB	: out	std_logic);
+	end component;
 
 begin
+
+--------------------------------------------
+xFILTEN : signal_sync
+port map(
+	clkA				=> clk_iface_i,
+	clkB				=> clk_i,
+	SignalIn_clkA	=> reg_i(90)(8), 
+	SignalOut_clkB	=> internal_write_filt_data);
+--------------------------------------------
+
 
 proc_buf_dat : process(rst_i, clk_i, data_i, internal_data_buffer_0, internal_data_buffer_1,
 								internal_data_buffer_2, internal_data_buffer_3, internal_data_buffer_4)
@@ -117,8 +140,12 @@ begin
 		internal_data_buffer_pickoff_1  <= internal_data_buffer_0(7);
 		internal_data_buffer_0(0) <= internal_data_pipe;
 		internal_data_buffer_pickoff_0  <=internal_data_pipe;
-		internal_data_pipe <= data_i;
-	
+		
+		case internal_write_filt_data is
+			when '0' => internal_data_pipe <= data_i;
+			when '1' => internal_data_pipe <= data_aux_i; --//filtered data
+		end case;
+
 	end if;
 end process;
 

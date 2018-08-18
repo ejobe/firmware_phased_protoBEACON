@@ -44,6 +44,8 @@ entity event_metadata is
 		pps_latch_reg_i		:	in	std_logic_vector(1 downto 0);
 		latched_timestamp_o	:  out std_logic_vector(47 downto 0);
 		
+		dynamic_beammask_i	: in std_logic_vector(define_num_beams-1 downto 0);
+			
 		reg_i					:	in		register_array_type;
 		event_header_o		:	out	event_metadata_type);
 		
@@ -69,16 +71,16 @@ signal internal_header_11 : internal_header_type;
 signal internal_header_12 : internal_header_type;
 signal internal_header_13 : internal_header_type;
 signal internal_header_14 : internal_header_type;
-signal internal_header_15 : internal_header_type;
-signal internal_header_16 : internal_header_type;
-signal internal_header_17 : internal_header_type;
-signal internal_header_18 : internal_header_type;
-signal internal_header_19 : internal_header_type;
-signal internal_header_20 : internal_header_type;
-signal internal_header_21 : internal_header_type;
-signal internal_header_22 : internal_header_type;
-signal internal_header_23 : internal_header_type;
-signal internal_header_24 : internal_header_type;
+--signal internal_header_15 : internal_header_type;
+--signal internal_header_16 : internal_header_type;
+--signal internal_header_17 : internal_header_type;
+--signal internal_header_18 : internal_header_type;
+--signal internal_header_19 : internal_header_type;
+--signal internal_header_20 : internal_header_type;
+--signal internal_header_21 : internal_header_type;
+--signal internal_header_22 : internal_header_type;
+--signal internal_header_23 : internal_header_type;
+--signal internal_header_24 : internal_header_type;
 --//
 
 signal internal_buffer_full : std_logic; 
@@ -99,12 +101,19 @@ signal internal_running_timestamp : std_logic_vector(47 downto 0);
 signal internal_event_timestamp_fast_clk : std_logic_vector(47 downto 0);
 signal internal_event_timestamp : std_logic_vector(47 downto 0);
 
+signal internal_running_timestamp_pps : std_logic_vector(47 downto 0);
+signal internal_event_pps_count_fast_clk : std_logic_vector(23 downto 0);
+signal internal_event_pps_count : std_logic_vector(23 downto 0);
+
 signal internal_data_clk_time_reset : std_logic := '0';
 
 signal internal_pps_latch_sig : std_logic;
 signal internal_pps_latch_sig_data_clk : std_logic;
 
 signal internal_gate : std_logic;  --//flag if event is within a gate pulse
+
+signal internal_pps_reg : std_logic_vector(1 downto 0);
+signal internal_pps_counter : std_logic_vector(23 downto 0);
 ------------------------------------------------------------------------------------------------------------------------------
 component signal_sync is
 port(
@@ -200,6 +209,16 @@ begin
 		internal_pps_latch_sig <= '0';
 	end if;
 end process;
+
+process(rst_i, clk_i, gate_i)
+begin
+	if rst_i = '1' then
+		internal_pps_reg <= (others=> '0');
+	elsif rising_edge(clk_i) then
+		internal_pps_reg <= internal_pps_reg(0) & gate_i;
+	end if;
+end process;
+
 xPPSLATCHSYNC : flag_sync
 	port map(
 		clkA 			=> clk_iface_i,
@@ -224,8 +243,21 @@ begin
 		internal_running_timestamp <= (others=>'0');
 	elsif rising_edge(clk_i) and internal_data_clk_time_reset = '1' then
 		internal_running_timestamp <= (others=>'0');
+	elsif rising_edge(clk_i) and (internal_pps_reg = "01" and reg_i(88)(0) = '0') then --//option to reset fine event timestamp on pps
+		internal_running_timestamp <= (others=>'0');
 	elsif rising_edge(clk_i) then
 		internal_running_timestamp <= internal_running_timestamp + 1;
+	end if;
+end process;
+
+proc_incr_pps_counter : process(rst_i, clk_i, internal_data_clk_time_reset)
+begin
+	if rst_i = '1' then
+		internal_pps_counter <= (others=>'0');
+	elsif rising_edge(clk_i) and internal_data_clk_time_reset = '1' then
+		internal_pps_counter <= (others=>'0');
+	elsif rising_edge(clk_i) and internal_pps_reg = "01" then
+		internal_pps_counter <= internal_pps_counter + 1;
 	end if;
 end process;
 ------------------------------------------------------------------------------------------------------------------------------
@@ -233,10 +265,13 @@ proc_get_timestamp : process(rst_i, clk_i, internal_running_timestamp, get_metad
 begin
 	if rst_i = '1' then
 		internal_event_timestamp_fast_clk <= (others=>'0');
+		internal_event_pps_count_fast_clk <= (others=>'0');
 	elsif rising_edge(clk_i) and internal_data_clk_time_reset = '1' then
 		internal_event_timestamp_fast_clk <= (others=>'0');
+		internal_event_pps_count_fast_clk <= (others=>'0');
 	elsif rising_edge(clk_i) and get_metadata_i = '1' then
 		internal_event_timestamp_fast_clk <= internal_running_timestamp;
+		internal_event_pps_count_fast_clk <= internal_pps_counter;
 	end if;
 end process;
 ------------------------------------------------------------------------------------------------------------------------------
@@ -277,14 +312,17 @@ begin
 	if rst_i = '1' then
 		internal_next_event_counter <= (others=>'0');
 		internal_event_timestamp <= (others=>'0');
+		internal_event_pps_count <= (others=>'0');
 		buf <= 0;
 	elsif rising_edge(clk_iface_i) and reg_i(126)(0) = '1' then
 		internal_next_event_counter <= (others=>'0');
 		internal_event_timestamp <= (others=>'0');
+		internal_event_pps_count <= (others=>'0');
 		buf <= 0;
 	elsif rising_edge(clk_iface_i) and internal_get_meta_data_reg(2 downto 1) = "01" then
 		internal_next_event_counter <= internal_next_event_counter + 1;
 		internal_event_timestamp <= internal_event_timestamp_fast_clk;
+		internal_event_pps_count <= internal_event_pps_count_fast_clk;
 		buf <= to_integer(unsigned(current_buffer_i));
 	end if;
 end process;
@@ -309,16 +347,16 @@ begin
 				internal_header_12(i) <= (others=>'0');
 				internal_header_13(i) <= (others=>'0');
 				internal_header_14(i) <= (others=>'0');
-				internal_header_15(i) <= (others=>'0');			
-				internal_header_16(i) <= (others=>'0');			
-				internal_header_17(i) <= (others=>'0');
-				internal_header_18(i) <= (others=>'0');
-				internal_header_19(i) <= (others=>'0');
-				internal_header_20(i) <= (others=>'0');
-				internal_header_21(i) <= (others=>'0');
-				internal_header_22(i) <= (others=>'0');
-				internal_header_23(i) <= (others=>'0');
-				internal_header_24(i) <= (others=>'0');
+--				internal_header_15(i) <= (others=>'0');			
+--				internal_header_16(i) <= (others=>'0');			
+--				internal_header_17(i) <= (others=>'0');
+--				internal_header_18(i) <= (others=>'0');
+--				internal_header_19(i) <= (others=>'0');
+--				internal_header_20(i) <= (others=>'0');
+--				internal_header_21(i) <= (others=>'0');
+--				internal_header_22(i) <= (others=>'0');
+--				internal_header_23(i) <= (others=>'0');
+--				internal_header_24(i) <= (others=>'0');
 			end loop;
 		
 		elsif  rising_edge(clk_iface_i) and internal_clear_meta_data = '1' then
@@ -338,16 +376,16 @@ begin
 				internal_header_12(i) <= (others=>'0');
 				internal_header_13(i) <= (others=>'0');
 				internal_header_14(i) <= (others=>'0');
-				internal_header_15(i) <= (others=>'0');			
-				internal_header_16(i) <= (others=>'0');			
-				internal_header_17(i) <= (others=>'0');
-				internal_header_18(i) <= (others=>'0');
-				internal_header_19(i) <= (others=>'0');
-				internal_header_20(i) <= (others=>'0');
-				internal_header_21(i) <= (others=>'0');
-				internal_header_22(i) <= (others=>'0');
-				internal_header_23(i) <= (others=>'0');
-				internal_header_24(i) <= (others=>'0');
+--				internal_header_15(i) <= (others=>'0');			
+--				internal_header_16(i) <= (others=>'0');			
+--				internal_header_17(i) <= (others=>'0');
+--				internal_header_18(i) <= (others=>'0');
+--				internal_header_19(i) <= (others=>'0');
+--				internal_header_20(i) <= (others=>'0');
+--				internal_header_21(i) <= (others=>'0');
+--				internal_header_22(i) <= (others=>'0');
+--				internal_header_23(i) <= (others=>'0');
+--				internal_header_24(i) <= (others=>'0');
 			end loop;
 			
 		elsif rising_edge(clk_iface_i) and internal_get_meta_data_reg(3 downto 2) = "01" then 
@@ -358,11 +396,13 @@ begin
 			internal_header_4(buf) <= internal_event_timestamp(23 downto 0);
 			internal_header_5(buf) <= internal_event_timestamp(47 downto 24);
 			internal_header_6(buf) <= internal_deadtime_counter;
-			internal_header_7(buf) <= current_buffer_i & reg_i(42)(0) & '0' & reg_i(76)(2 downto 0) & trig_type_i & "000000000000000";
+			internal_header_7(buf) <= current_buffer_i & reg_i(42)(0) & '0' & reg_i(76)(2 downto 0) & trig_type_i & "00000000000" & reg_i(79)(3 downto 0);
 			internal_header_8(buf) <= internal_gate & reg_i(48)(7 downto 0) & reg_i(80)(define_num_beams-1 downto 0);
 			internal_header_9(buf) <= running_scaler_i; 
 			internal_header_10(buf)<= trig_last_beam_i;
 			internal_header_11(buf)<= x"0" & last_trig_pow_i(take_log2(to_integer(unsigned(trig_last_beam_i))));
+			internal_header_12(buf)<= internal_event_pps_count;
+			internal_header_12(buf)<= dynamic_beammask_i;
 			
 --			internal_header_10(buf) <= x"0" & last_trig_pow_i(0);
 --			internal_header_11(buf) <= x"0" & last_trig_pow_i(1);
@@ -387,7 +427,7 @@ variable n : integer range 0 to 3 := 0;
 begin
 	if rst_i = '1' then
 		n:=0;
-		for i in 0 to 24 loop	
+		for i in 0 to 14 loop	
 			event_header_o(0) <= (others=>'1');
 		end loop;
 	elsif rising_edge(clk_iface_i) then
@@ -407,16 +447,16 @@ begin
 		event_header_o(12) <= internal_header_12(n);
 		event_header_o(13) <= internal_header_13(n);
 		event_header_o(14) <= internal_header_14(n);
-		event_header_o(15) <= internal_header_15(n);	
-		event_header_o(16) <= internal_header_16(n);
-		event_header_o(17) <= internal_header_17(n);
-		event_header_o(18) <= internal_header_18(n);
-		event_header_o(19) <= internal_header_19(n);
-		event_header_o(20) <= internal_header_20(n);
-		event_header_o(21) <= internal_header_21(n);
-		event_header_o(22) <= internal_header_22(n);
-		event_header_o(23) <= internal_header_23(n);
-		event_header_o(24) <= internal_header_24(n);
+--		event_header_o(15) <= internal_header_15(n);	
+--		event_header_o(16) <= internal_header_16(n);
+--		event_header_o(17) <= internal_header_17(n);
+--		event_header_o(18) <= internal_header_18(n);
+--		event_header_o(19) <= internal_header_19(n);
+--		event_header_o(20) <= internal_header_20(n);
+--		event_header_o(21) <= internal_header_21(n);
+--		event_header_o(22) <= internal_header_22(n);
+--		event_header_o(23) <= internal_header_23(n);
+--		event_header_o(24) <= internal_header_24(n);
 	end if;
 end process;			
 end rtl;

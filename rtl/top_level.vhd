@@ -141,6 +141,7 @@ architecture rtl of top_level is
 	signal clock_100kHz			:	std_logic;
 	signal clock_rfrsh_pulse_1Hz		:	std_logic;
 	signal clock_rfrsh_pulse_100mHz	:	std_logic;
+	signal clock_rfrsh_pulse_100Hz	:	std_logic;
 	signal clock_FPGA_PLLlock	:	std_logic;
 	signal clock_FPGA_PLLrst	:	std_logic;
 	--//signals for usb, specifically
@@ -201,6 +202,7 @@ architecture rtl of top_level is
 	signal unused_pins			:  std_logic_vector(45 downto 0);
 	--//data
 	signal wfm_data				: full_data_type; --//registered on core clk
+	signal wfm_data_filt			: full_data_type; --//registered on core clk
 	signal beam_data				: array_of_beams_type; --//registered on core clk
 	--//signal for power sums
 	signal powsum_ev2samples	: sum_power_type;
@@ -226,6 +228,9 @@ architecture rtl of top_level is
 	--//signals driven from the data manager module
 	signal data_manager_write_busy : std_logic;
 	signal event_meta_data	: event_metadata_type;
+	--//dynamic beam mask [added for protoBEACON 8/2018]
+	signal dynamic_beam_mask : std_logic_vector(define_num_beams-1 downto 0);
+	signal dynamic_beam_mask_clk_iface : std_logic_vector(define_num_beams-1 downto 0);
 	--//signals for scalers
 	signal scalers_beam_trigs	: std_logic_vector(define_num_beams-1 downto 0);
 	signal scalers_beam_verified_trigs	: std_logic_vector(define_num_beams-1 downto 0);
@@ -295,6 +300,7 @@ begin
 		CLK_10Hz_o		=> clock_10Hz,
 		CLK_1kHz_o		=> clock_1kHz,	
 		CLK_100kHz_o	=> clock_100kHz,
+		refresh_100Hz_o	=> clock_rfrsh_pulse_100Hz,
 		refresh_1Hz_o		=> clock_rfrsh_pulse_1Hz,
 		refresh_100mHz_o  => clock_rfrsh_pulse_100mHz, --//scaler refresh clock
 		fpga_pllLock_o => clock_FPGA_PLLlock);
@@ -344,11 +350,11 @@ begin
 		clk_i			=>	clock_31MHz_a,
 		clk_iface_i	=> clock_31MHz_b,
 		reg_i			=> registers,
-		data_i		=>	wfm_data,
+		data_i		=>	wfm_data_filt, --wfm_data,
 		beams_o		=> beam_data,
 		sum_pow_o	=> powsum_ev2samples);
 	--///////////////////////////////////////
-	xPHASEDTRIGGER : entity work.trigger_v4 --//trigger_v2 adds power 'verification' feature. 
+	xPHASEDTRIGGER : entity work.trigger_v5 --//trigger_v2 adds power 'verification' feature. 
 	generic map( ENABLE_PHASED_TRIGGER => FIRMWARE_DEVICE)
 	port map(
 		rst_i					=> reset_global or reset_global_except_registers,
@@ -357,6 +363,7 @@ begin
 		reg_i					=> registers,
 		powersums_i			=> powsum_ev2samples,
 		data_write_busy_i => data_manager_write_busy,
+		dynamic_beam_mask_i => dynamic_beam_mask,
 		last_trig_pow_o	=> last_trig_power,
 		trig_beam_o			=> scalers_beam_trigs, 	--//trigger on sloower MHz clock in each beam (for scalers, beam-tagging)
 		trig_clk_data_copy_o => the_phased_trigger_off_board,
@@ -448,7 +455,26 @@ begin
 			data_ram_ch0_o		=> rx_ram_data(2*i), 
 			data_ram_ch1_o		=> rx_ram_data(2*i+1));
 	end generate ReceiverBlock;
-	
+	--///////////////////////////////////////////////////////////	
+	xFIRLOWPASS : entity work.filter
+	port map(
+		rst_i				=> reset_global,
+		clk_i				=> clock_31MHz_a,
+		clk_iface_i		=> clock_31MHz_b,
+		reg_i				=> registers,
+		data_i			=> wfm_data,
+		filtered_data_o => wfm_data_filt);
+	--///////////////////////////////////////////////////////////
+	xDYNAMICMASKING : entity work.dynamic_masking	
+	port map(
+		rst_i				=> reset_global,
+		clk_i				=> clock_31MHz_a,
+		clk_iface_i		=> clock_31MHz_b,
+		clk_update_i 	=> clock_rfrsh_pulse_100Hz,
+		reg_i				=> registers,
+		trig_beam_i		=> scalers_beam_trigs,
+		dynamic_beammask_clk_iface_o => dynamic_beam_mask_clk_iface,
+		dynamic_beammask_o => dynamic_beam_mask);
 --//////////////////////////////////////////////////////////////////////////
 --//use this block if running ADC at slow rate (i.e. debugging) and using ADC DClk directly 
 --// (no deserialization of data)
@@ -494,7 +520,9 @@ begin
 		pps_latched_timestamp_o => pps_timestamp,
 		status_reg_o			=> status_reg_data_manager,
 		status_reg_latched_o => status_reg_latched_data_manager,
+		dynamic_beammask_i	=> dynamic_beam_mask_clk_iface,
 		wfm_data_i				=> wfm_data,
+		wfm_data_filt_i		=> wfm_data_filt,
 		running_scalers_i		=> running_scalers,
 		data_ram_at_current_adr_o => ram_data);
 	--///////////////////////////////////////
@@ -549,6 +577,7 @@ begin
 		remote_upgrade_epcq_data_i		=> remote_upgrade_epcq_data,
 		remote_upgrade_status_i			=> remote_upgrade_status,
 		pps_timestamp_to_read_i			=> pps_timestamp_to_read,
+		dynamic_mask_i						=> dynamic_beam_mask_clk_iface,
 		--//////////////////////////
 		write_reg_i		=> mcu_data_pkt_32bit,
 		write_rdy_i		=> mcu_rx_rdy,
@@ -621,7 +650,7 @@ begin
 	-- --uC_dig(9) [the SMA output on the SPI adapter board] => the ext trig input pass-through (i.e. for PPS signal)
 	--------------------------------------------------------------------------------------
 	proc_assign_sma_pins : process(cal_pulse_rf_switch_ctl, cal_pulse_the_pulse, the_phased_trigger, SMA_in, SMA_out1,
-												sync_from_master_device, the_ext_trigger_out)
+												sync_from_master_device, the_ext_trigger_out, pps)
 	begin
 	case FIRMWARE_DEVICE is
 		when '1' => --//master board

@@ -91,8 +91,8 @@ constant slice_base : integer := 4*pdat_size;
 constant slice_lo   : integer := define_wave2beam_lo_bit+slice_base;
 constant slice_hi   : integer := define_wave2beam_hi_bit+slice_base;
 
-signal internal_beams 		: array_of_beams_type;
-signal internal_beams_pipe	: array_of_beams_type;
+signal internal_beams 		: array_of_beams_type := (others=> (others=>'0'));
+signal internal_beams_pipe	: array_of_beams_type := (others=> (others=>'0'));
 
 signal internal_summed_power	:	sum_power_type;
 

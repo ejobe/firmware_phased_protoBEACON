@@ -3,7 +3,7 @@
 --    --KICP--
 --
 -- PROJECT:      phased-array trigger board
--- FILE:         trigger_v4.vhd
+-- FILE:         trigger_v5.vhd
 -- AUTHOR:       e.oberla
 -- EMAIL         ejo@uchicago.edu
 -- DATE:         6/2017...
@@ -24,7 +24,7 @@ use ieee.numeric_std.all;
 use work.defs.all;
 use work.register_map.all;
 ------------------------------------------------------------------------------------------------------------------------------
-entity trigger_v4 is
+entity trigger_v5 is
 	generic(
 		ENABLE_PHASED_TRIGGER : std_logic := '1'); --//compile-time flag
 	port(
@@ -36,7 +36,8 @@ entity trigger_v4 is
 		powersums_i		:	in		sum_power_type;
 		
 		data_write_busy_i	:	in	std_logic; --//prevent triggers if triggered event is already being written to ram
-		 
+		dynamic_beam_mask_i :in	std_logic_vector(define_num_beams-1 downto 0);
+		
 		last_trig_pow_o	:	inout	average_power_16samp_type; 
 		 
 		trig_beam_o						:	out	std_logic_vector(define_num_beams-1 downto 0); --//for scalers
@@ -46,9 +47,9 @@ entity trigger_v4 is
 		last_trig_beam_clk_data_o 	: 	inout std_logic_vector(define_num_beams-1 downto 0); --//register the beam trigger 
 		trig_clk_iface_o				:	out	std_logic); --//trigger on clk_iface_i [trig_o is high for one clk_iface_i cycle (use for scalers)]
 		
-end trigger_v4;
+end trigger_v5;
 ------------------------------------------------------------------------------------------------------------------------------
-architecture rtl of trigger_v4 is
+architecture rtl of trigger_v5 is
 ------------------------------------------------------------------------------------------------------------------------------
 type buffered_powersum_type is array(define_num_beams-1 downto 0) of 
 	std_logic_vector(2*define_num_power_sums*(define_pow_sum_range+1)-1 downto 0);
@@ -93,6 +94,7 @@ signal internal_trig_pow_latch_1 : std_logic_vector(define_num_beams-1 downto 0)
 signal internal_trig_pow_latch_0_reg : std_logic_vector(1 downto 0) := (others=>'0');
 signal internal_trig_pow_latch_1_reg : std_logic_vector(1 downto 0) := (others=>'0');
 
+signal internal_trigger_beam_mask_from_sw :  std_logic_vector(define_num_beams-1 downto 0);
 signal internal_trigger_beam_mask :  std_logic_vector(define_num_beams-1 downto 0);
 
 signal internal_trig_clk_data : std_logic;
@@ -136,7 +138,7 @@ TrigMaskSync : for i in 0 to define_num_beams-1 generate
 		clkA				=> clk_iface_i,
 		clkB				=> clk_data_i,
 		SignalIn_clkA	=> reg_i(80)(i), --//reg 80 has the beam mask
-		SignalOut_clkB	=> internal_trigger_beam_mask(i));
+		SignalOut_clkB	=> internal_trigger_beam_mask_from_sw(i));
 end generate;
 -------------------------------------------------------------------------------------
 TrigHoldoffSync : for i in 0 to 15 generate
@@ -540,10 +542,14 @@ begin
 		trig_clk_data_copy_o <= '0';
 		trig_clk_data_pipe <= (others=>'0');
 		
+		internal_trigger_beam_mask <= (others=>'0');
+		
 	elsif rising_edge(clk_data_i) then
 		trig_clk_data_copy_o   <=  trig_clk_data_o;
 		internal_trig_clk_data <=  trig_clk_data_o;
 		trig_clk_data_o	<=	trig_clk_data_pipe(0) or trig_clk_data_pipe(1);
+		
+		internal_trigger_beam_mask <= internal_trigger_beam_mask_from_sw and dynamic_beam_mask_i; --//add dynamic masking 8/17/2018
 		
 		trig_clk_data_pipe(0) <=
 									(verified_instantaneous_above_threshold(0) and internal_trigger_beam_mask(0)) or
