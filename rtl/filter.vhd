@@ -34,14 +34,24 @@ end filter;
 architecture rtl of filter is
 
 constant filter_taps : integer :=  7;
-constant filter_coeff_size : integer :=  5;
-constant filter_result_length : integer := filter_coeff_size + define_adc_resolution + 3; --extra 3 due to summing up filter_taps
+constant filter_coeff_size : integer :=  5; 
+constant filter_result_length : integer := filter_coeff_size + define_adc_resolution + 4; --extra 3 due to summing up filter_taps
 
+-----------------------------------------------
+----filter via std_logic:
+-----------------------------------------------
 type filter_kernel_type is array (filter_taps-1 downto 0) of std_logic_vector(filter_coeff_size-1 downto 0);
 constant kernel : filter_kernel_type := ('0' & x"1", '0' & x"6", '0' & x"F", '1' & x"4", '0' & x"F", '0' & x"6", '0' & x"1");
---constant kernel : filter_kernel_type := (1, 6, 15, 20, 15, 6, 1);
+--constant kernel : filter_kernel_type := (0' & x"1", '0' & x"6", '0' & x"F", '1' & x"4", '0' & x"F", '0' & x"6", '0' & x"1");
 
-constant integral_bit_shift : integer := 5; --integral of kernal is 64
+-----------------------------------------------
+----filter via conversion to integer:
+-----------------------------------------------
+--type filter_kernel_type is array (filter_taps-1 downto 0) of integer range 0 to 21;
+--constant kernel : filter_kernel_type := (1,6,15,20,15,6,1);
+
+
+constant integral_bit_shift : integer := 6; 
 --signal integral_bit_shift : integer := 5; 
 
 type internal_buf_data_type is array (7 downto 0) of std_logic_vector(2*pdat_size-1 downto 0);
@@ -50,8 +60,14 @@ signal buf_data_0 		: 	full_data_type;
 signal buf_data_1 		: 	full_data_type;
 
 type filter_result_type is array (7 downto 0, 2*define_serdes_factor-1 downto 0) of std_logic_vector(filter_result_length-1 downto 0);
-signal filter_result : filter_result_type; 
+signal filter_result : filter_result_type;  -- <---filter via std_logic
 signal buf_filter_result : full_data_type;
+
+-----------------------------------------------
+----filter via conversion to integer:
+-----------------------------------------------
+--type filter_result_int_type is array (7 downto 0, 2*define_serdes_factor-1 downto 0) of integer range 0 to 8192;
+--signal filter_result : filter_result_int_type;
 
 --//
 component signal_sync is
@@ -85,9 +101,15 @@ begin
 			buf_data_1(j) <= (others=>'0');
 
 			for i in 0 to 2*define_serdes_factor-1 loop
-			
+				-----------------------------------------------
+				----filter via std_logic:
+				-----------------------------------------------			
 				filter_result(j,i) <= (others=>'0');
-			
+				
+				-----------------------------------------------
+				----filter via conversion to integer:
+				-----------------------------------------------
+				--filter_result(j,i) <= 0;
 			end loop;
 			
 			--integral_bit_shift <= 5;
@@ -103,35 +125,64 @@ begin
 				when '0' => filtered_data_o(j) <= buf_data_1(j);
 				when '1' => filtered_data_o(j) <= buf_filter_result(j);
 			end case;
-
-			--integral_bit_shift <= to_integer(unsigned(reg_i(91)(7 downto 0)));
-
 	
 			for i in 0 to 2*define_serdes_factor-1 loop
 			
-				buf_filter_result(j)((i+1)*define_word_size-1 downto i*define_word_size) <= '0' & filter_result(j,i)(filter_result_length-1) & --//get sign bit 
-													filter_result(j,i)(integral_bit_shift+define_adc_resolution-2 downto integral_bit_shift); --//get value
-			
+-----------------------------------------------
+----filter via conversion to integer:
+-----------------------------------------------
+--				buf_filter_result(j)((i+1)*define_word_size-1 downto i*define_word_size) <= '0' & 
+--													std_logic_vector(to_unsigned(filter_result(j,i), filter_result_length))(integral_bit_shift+define_adc_resolution-1 downto integral_bit_shift); --//get value	
+--													
+--				filter_result(j,i) <=						
+--					to_integer(unsigned(dat(j)(pdat_size-2-define_word_size*0 + define_word_size*i downto pdat_size-define_word_size*1 + define_word_size*i ))) * 
+--					kernel(0) + 
+--
+--					to_integer(unsigned(dat(j)(pdat_size-2-define_word_size*1 + define_word_size*i downto pdat_size-define_word_size*2 + define_word_size*i ))) * 
+--					kernel(1) + 											 
+--
+--					to_integer(unsigned(dat(j)(pdat_size-2-define_word_size*2 + define_word_size*i downto pdat_size-define_word_size*3 + define_word_size*i ))) * 
+--					kernel(2) + 
+--
+--					to_integer(unsigned(dat(j)(pdat_size-2-define_word_size*3 + define_word_size*i downto pdat_size-define_word_size*4 + define_word_size*i ))) * 
+--					kernel(3) + 
+--
+--					to_integer(unsigned(dat(j)(pdat_size-2-define_word_size*4 + define_word_size*i downto pdat_size-define_word_size*5 + define_word_size*i ))) * 
+--					kernel(4) + 
+--
+--					to_integer(unsigned(dat(j)(pdat_size-2-define_word_size*5 + define_word_size*i downto pdat_size-define_word_size*6 + define_word_size*i ))) * 
+--					kernel(5) + 	
+--
+--					to_integer(unsigned(dat(j)(pdat_size-2-define_word_size*6 + define_word_size*i downto pdat_size-define_word_size*7 + define_word_size*i ))) * 
+--					kernel(6);
+									
+
+-----------------------------------------------
+----filter via std_logic:
+-----------------------------------------------	
+				buf_filter_result(j)((i+1)*define_word_size-1 downto i*define_word_size) <= '0' & 
+													filter_result(j,i)(integral_bit_shift+define_adc_resolution-1 downto integral_bit_shift); --//get value		
+													
 				filter_result(j,i) <= 
-				std_logic_vector(resize(signed(
+				std_logic_vector(resize(unsigned(
 						unsigned(dat(j)(pdat_size-2-define_word_size*0 + define_word_size*i downto pdat_size-define_word_size*1 + define_word_size*i )) * 
 						unsigned(kernel(0))), filter_result_length)) +
-				std_logic_vector(resize(signed(
+				std_logic_vector(resize(unsigned(
 						unsigned(dat(j)(pdat_size-2-define_word_size*1 + define_word_size*i downto pdat_size-define_word_size*2 + define_word_size*i )) * 
 						unsigned(kernel(1))), filter_result_length)) +											 
-				std_logic_vector(resize(signed(
+				std_logic_vector(resize(unsigned(
 						unsigned(dat(j)(pdat_size-2-define_word_size*2 + define_word_size*i downto pdat_size-define_word_size*3 + define_word_size*i )) * 
 						unsigned(kernel(2))), filter_result_length)) +
-				std_logic_vector(resize(signed(
+				std_logic_vector(resize(unsigned(
 						unsigned(dat(j)(pdat_size-2-define_word_size*3 + define_word_size*i downto pdat_size-define_word_size*4 + define_word_size*i )) * 
 						unsigned(kernel(3))), filter_result_length)) +
-				std_logic_vector(resize(signed(
+				std_logic_vector(resize(unsigned(
 						unsigned(dat(j)(pdat_size-2-define_word_size*4 + define_word_size*i downto pdat_size-define_word_size*5 + define_word_size*i )) * 
 						unsigned(kernel(4))), filter_result_length)) +
-				std_logic_vector(resize(signed(
+				std_logic_vector(resize(unsigned(
 						unsigned(dat(j)(pdat_size-2-define_word_size*5 + define_word_size*i downto pdat_size-define_word_size*6 + define_word_size*i )) * 
 						unsigned(kernel(5))), filter_result_length)) +	
-				std_logic_vector(resize(signed(
+				std_logic_vector(resize(unsigned(
 						unsigned(dat(j)(pdat_size-2-define_word_size*6 + define_word_size*i downto pdat_size-define_word_size*7 + define_word_size*i )) * 
 						unsigned(kernel(6))), filter_result_length));		
 						

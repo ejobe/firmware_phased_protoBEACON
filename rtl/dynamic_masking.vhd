@@ -41,11 +41,13 @@ constant scaler_width   : integer := 8;
 type dynamic_scaler_array_type is array (define_num_beams-1 downto 0) of std_logic_vector(scaler_width-1 downto 0);
 signal dynamic_scalers : dynamic_scaler_array_type;
 signal dynamic_scalers_latched : dynamic_scaler_array_type;
+signal scaler_threshold : std_logic_vector(7 downto 0);
 
 signal internal_dynamic_beammask : std_logic_vector(define_num_beams-1 downto 0) := (others=>'0');
 
-type dynamic_beammask_holdoff_counter_type is array (define_num_beams-1 downto 0) of std_logic_vector(7 downto 0);
+type dynamic_beammask_holdoff_counter_type is array (define_num_beams-1 downto 0) of std_logic_vector(15 downto 0);
 signal dynamic_beammask_holdoff_counter : dynamic_beammask_holdoff_counter_type := (others=> (others=>'0'));
+signal counter_holdon_time : std_logic_vector(15 downto 0);
 
 type dyn_beammask_fsm_type is (pass_st, mask_st);
 type dyn_beammask_fsm_array_type is array (define_num_beams-1 downto 0) of dyn_beammask_fsm_type;
@@ -81,6 +83,24 @@ DynMaskSync : for i in 0 to define_num_beams-1 generate
 		clkB				=> clk_i,
 		SignalIn_clkA	=> internal_dynamic_beammask(i), 
 		SignalOut_clkB	=> dynamic_beammask_o(i));
+end generate;
+
+CounterThreshSync : for i in 0 to 15 generate
+	xCOUNTERTHRESHSYNC : signal_sync
+	port map(
+		clkA				=> clk_iface_i,
+		clkB				=> clk_update_i,
+		SignalIn_clkA	=> reg_i(94)(i), 
+		SignalOut_clkB	=> counter_holdon_time(i));
+end generate;
+
+ScalerThreshSync : for i in 0 to 7 generate
+	xSCALERTHRESHSYNC : signal_sync
+	port map(
+		clkA				=> clk_iface_i,
+		clkB				=> clk_update_i,
+		SignalIn_clkA	=> reg_i(93)(i), 
+		SignalOut_clkB	=> scaler_threshold(i));
 end generate;
 
 xDYNMASKENSYNC : signal_sync
@@ -133,9 +153,9 @@ begin
 	end loop;
 end process;
 
-proc_dyn_mask : process(rst_i, clk_iface_i, clk_update_i, internal_beammask_en, reg_i, dynamic_beammask_holdoff_counter, 
+proc_dyn_mask : process(rst_i, clk_iface_i, clk_update_i, internal_beammask_en, dynamic_beammask_holdoff_counter, 
 								dynamic_scalers_latched,
-								dyn_beammask_fsm)
+								dyn_beammask_fsm, counter_holdon_time, scaler_threshold)
 begin
 	----------
 	for i in 0 to define_num_beams-1 loop
@@ -165,7 +185,7 @@ begin
 					dynamic_beammask_holdoff_counter(i) <= (others=>'0');
 					
 					--//if above programmable threshold, goto masking
-					if (dynamic_scalers_latched(i) >  reg_i(93)(7 downto 0)) then 
+					if (dynamic_scalers_latched(i) >  scaler_threshold(7 downto 0)) then 
 						internal_dynamic_beammask(i) <= '0'; --//mask
 						dyn_beammask_fsm(i) <= mask_st;
 					else
@@ -177,7 +197,7 @@ begin
 				--------------------------	
 					internal_dynamic_beammask(i) <= '0'; --//mask
 		
-					if dynamic_beammask_holdoff_counter(i)	>= reg_i(94)(7 downto 0) then			
+					if dynamic_beammask_holdoff_counter(i)	>= counter_holdon_time then			
 						dynamic_beammask_holdoff_counter(i) <= (others=>'0');
 						dyn_beammask_fsm(i) <= pass_st;
 					else

@@ -205,11 +205,10 @@ begin
 		
 		--//filtering
 		registers_io(90) <= x"000001"; --// enable low pass to trigger path with LSB
-		registers_io(91) <= x"000005"; --// post-filter bit shift (low 8 bits)
 		
 		--//dynamic masking
 		registers_io(93) <= x"000105"; --// dynamic beam masking register
-		registers_io(94) <= x"000040"; --// dynamic beam masking register - lower 8 bits mask holdoff
+		registers_io(94) <= x"000040"; --// dynamic beam masking register - lower 16 bits mask holdoff
 
 		--//trigger thresholds:
 		--registers_io(base_adrs_trig_thresh+0) <= x"0FFFFF";   --//[86] trigger threshold value 
