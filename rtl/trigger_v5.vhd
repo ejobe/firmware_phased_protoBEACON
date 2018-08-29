@@ -333,7 +333,7 @@ end process;
 --////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ------------------------------------------------------------------------------------------------------------------------------
 proc_buf_powsum : process(rst_i, clk_data_i, data_write_busy_i, internal_trig_en_reg, internal_trig_holdoff_count, internal_global_trigger_holdoff,
-									instantaneous_avg_power_0, instantaneous_avg_power_1, thresholds)
+									instantaneous_avg_power_0, instantaneous_avg_power_1, thresholds, dynamic_beam_mask_i)
 begin
 	for i in 0 to define_num_beams-1 loop
 		if rst_i = '1' or ENABLE_PHASED_TRIGGER = '0' then
@@ -434,6 +434,11 @@ begin
 					if data_write_busy_i = '1' or internal_global_trigger_holdoff = '1' then
 						instantaneous_above_threshold(i) <= '0';
 						trigger_state_machine_state(i) <= idle_st;
+						
+					--//add dynamic masking HERE 8/29/2018
+					elsif dynamic_beam_mask_i(i) = '1' then
+						instantaneous_above_threshold(i) <= '0';
+						trigger_state_machine_state(i) <= idle_st;
 					
 					elsif instantaneous_avg_power_0(i) > thresholds(i) then
 						instantaneous_above_threshold(i) <= '1'; --// high for two clk_data_i cycles
@@ -485,14 +490,14 @@ begin
 	end loop;
 end process;
 ------------------------------------------------------------------------------------------------------------------------------
-process(clk_data_i, rst_i)
+process(clk_data_i, rst_i, verified_instantaneous_above_threshold)
 begin
 	if rst_i = '1'  or ENABLE_PHASED_TRIGGER = '0' then
 		internal_trig_clk_data <= '0';
 		trig_clk_data_o <= '0';
 		trig_clk_data_copy_o <= '0';
 		trig_clk_data_pipe <= (others=>'0');
-		
+				
 		internal_trigger_beam_mask <= (others=>'0');
 		
 	elsif rising_edge(clk_data_i) then
@@ -500,7 +505,7 @@ begin
 		internal_trig_clk_data <=  trig_clk_data_o;
 		trig_clk_data_o	<=	trig_clk_data_pipe(0) or trig_clk_data_pipe(1);
 		
-		internal_trigger_beam_mask <= internal_trigger_beam_mask_from_sw and dynamic_beam_mask_i; --//add dynamic masking 8/17/2018
+		internal_trigger_beam_mask <= internal_trigger_beam_mask_from_sw; --and dynamic_beam_mask_i; --//add dynamic masking 8/17/2018
 		
 		trig_clk_data_pipe(0) <=
 									(verified_instantaneous_above_threshold(0) and internal_trigger_beam_mask(0)) or
@@ -528,8 +533,7 @@ begin
 									(verified_instantaneous_above_threshold(21) and internal_trigger_beam_mask(21)) or
 									(verified_instantaneous_above_threshold(22) and internal_trigger_beam_mask(22)) or
 									(verified_instantaneous_above_threshold(23) and internal_trigger_beam_mask(23));
-
-	
+									
 	
 	end if;
 end process;
