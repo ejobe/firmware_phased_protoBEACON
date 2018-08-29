@@ -100,7 +100,8 @@ signal internal_trigger_beam_mask :  std_logic_vector(define_num_beams-1 downto 
 signal internal_trig_clk_data : std_logic;
 
 --//trig verification signals (new in v2 trig module)
-type trig_verification_state_type is (idle_st, trig_start_st, trig_verify_1_st, trig_verify_2_st, trig_high_st, trig_hold_st, done_st);
+--type trig_verification_state_type is (idle_st, trig_start_st, trig_verify_1_st, trig_verify_2_st, trig_high_st, trig_hold_st, done_st);
+type trig_verification_state_type is (idle_st, trig_start_st, trig_high_st, trig_hold_st, done_st);
 signal trig_verification_state : trig_verification_state_type;
 signal verfication_trig_flag : std_logic;
 signal internal_trig_verification_mode : std_logic := '1';
@@ -290,60 +291,10 @@ begin
 				verification_counter <= (others=>'0');
 				verification_current_max_beam <= (others=>'0');
 
-				case internal_trig_verification_mode is 
-					when '0' =>
-						verified_instantaneous_above_threshold <= internal_last_trig_latched_beam_pattern_buf;
-						trig_verification_state <= trig_high_st;
-					
-					when '1' =>
-						verified_instantaneous_above_threshold <= (others=>'0');
-						trig_verification_state <= trig_verify_1_st;
-				end case;
-			
-			--// loop thru beams, find beam w/ max power
-			------- this adds 5 extra clk_data_i cycles to trigger (assumes 15 beams, need adjusted if define_num_beams changes.. 0--
-			when trig_verify_1_st =>
-				internal_global_trigger_holdoff <= '1';
-				trigger_holdoff_counter <= (others=>'0');
-
-				verified_instantaneous_above_threshold <= (others=>'0');
-				
-				--//added 2/21/2018: check 2 beams per clock cycle
-				
-				if (last_trig_pow_o(to_integer(unsigned(verification_counter))+2) > last_trig_pow_o(to_integer(unsigned(verification_current_max_beam)))) and
-							(last_trig_pow_o(to_integer(unsigned(verification_counter))+2) > (last_trig_pow_o(to_integer(unsigned(verification_counter))+1)))  then
-					verification_current_max_beam <= (verification_counter + 2);			
-
-				elsif last_trig_pow_o(to_integer(unsigned(verification_counter))+1) > last_trig_pow_o(to_integer(unsigned(verification_current_max_beam))) then
-					verification_current_max_beam <= (verification_counter + 1);
-				
-				else
-					verification_current_max_beam <= verification_current_max_beam;
-				end if;
-
-				if verification_counter = (define_num_beams-3) then 
-					verification_counter <= (others=>'0');
-					trig_verification_state <= trig_verify_2_st;
-				else
-					verification_counter <= verification_counter +2;
-					trig_verification_state <= trig_verify_1_st;
-				end if;
-			
-			--// verify beam with max power is above threshold
-			------- this adds another clk_data_i cycle, for  clk_data_i total cycles longer than over non-verified trigger
-			when trig_verify_2_st =>
-				internal_global_trigger_holdoff <= '1';
-				trigger_holdoff_counter <= (others=>'0');
-				verification_counter <= (others=>'0');
-
-				if last_trig_pow_o(to_integer(unsigned(verification_current_max_beam))) >= thresholds(to_integer(unsigned(verification_current_max_beam))) then
-					verified_instantaneous_above_threshold(to_integer(unsigned(verification_current_max_beam))) <= '1';
-					trig_verification_state <= trig_high_st;
-				else
-					verified_instantaneous_above_threshold <= (others=>'0');
-					trig_verification_state <= idle_st;
-				end if;
-										
+				verified_instantaneous_above_threshold <= internal_last_trig_latched_beam_pattern_buf;
+				trig_verification_state <= trig_high_st;
+							
+		
 			when trig_high_st =>
 				last_trig_beam_clk_data_o <= verified_instantaneous_above_threshold;
 				--verified_instantaneous_above_threshold <= verified_instantaneous_above_threshold; --//trigger still high

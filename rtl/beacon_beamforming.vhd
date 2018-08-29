@@ -111,7 +111,7 @@ type beam_delays_horz_type is array (4 downto 0) of integer range -8 to 8;
 constant beam_delays_horz : beam_delays_horz_type := (-6, -3, 0, 3, 6); 
 
 type beam_delays_vert_type is array (3 downto 0) of integer range -8 to 8;
-constant beam_delays_vert : beam_delays_vert_type := (-6, 3, 0, 3);
+constant beam_delays_vert : beam_delays_vert_type := (-6, -3, 0, 3);
 
 --//beam codes - one per antenna, depends on array geometry
 type beam_codes_type is array (3 downto 0) of integer range -8 to 8;
@@ -126,7 +126,6 @@ type coh_sum_type is array (beam_delays_horz'length downto 0,
 signal coh_sum : coh_sum_type;
 
 --//------------------------------------------------------------------
-
 --//
 component signal_sync is
 port
@@ -152,7 +151,7 @@ port map(
 	SignalIn_clkA	=> reg_i(79)(0), 
 	SignalOut_clkB	=> internal_pol_select);
 --------------------------------------------
----		
+-----//		
 --//assign either hpol or vpol channels to beamformer
 proc_assign_data : process(clk_i, data_i)
 begin
@@ -173,13 +172,14 @@ begin
 		end case;
 	end if;
 end process;
-------------
+--------------//
 proc_buffer_data : process(rst_i, clk_i, pol_data)
 begin
 	--//loop over trigger channels
 	for i in 0 to 3 loop
 		
 		if rst_i = '1' or ENABLE_BEAMFORMING = '0' then
+			
 			buf_data_0(i)<= (others=>'0');
 			buf_data_1(i)<= (others=>'0');
 			buf_data_2(i)<= (others=>'0');
@@ -229,7 +229,7 @@ begin
 		end if;
 	end loop;
 end process;
-
+--//
 --//pipeline beams to output
 proc_pipe_beams : process(rst_i, clk_i, internal_beam_enable)
 begin
@@ -256,9 +256,8 @@ begin
 		end if;
 	end loop;
 end process;
-
-
-
+--/////////////////////////////////////--
+--/////////////////////////////////////--
 proc_delay_and_sum : process(rst_i, clk_i)
 begin
 	--//loop over individual 8-bit ADC words
@@ -278,8 +277,7 @@ begin
 					coh_sum(hz, vt, i) <= (others=>'0');
 			
 				end loop;
-			end loop;
-			
+			end loop;	
 				
 		elsif rising_edge(clk_i) then
 			
@@ -306,17 +304,17 @@ begin
 																			define_word_size+slice_hi-1 downto 
 																			(i+(beam_delays_horz(hz)*beam_codes_horz(0) + beam_delays_vert(vt)*beam_codes_vert(0))) *
 																			define_word_size+slice_lo )),define_beam_bits)) +
-						
+				
 						std_logic_vector(resize(signed(dat(1)(	(i+(beam_delays_horz(hz)*beam_codes_horz(1) + beam_delays_vert(vt)*beam_codes_vert(1))) * 
 																			define_word_size+slice_hi-1 downto 
 																			(i+(beam_delays_horz(hz)*beam_codes_horz(1) + beam_delays_vert(vt)*beam_codes_vert(1))) *
 																			define_word_size+slice_lo )),define_beam_bits)) +
-						
+						--
 						std_logic_vector(resize(signed(dat(2)(	(i+(beam_delays_horz(hz)*beam_codes_horz(2) + beam_delays_vert(vt)*beam_codes_vert(2))) * 
 																			define_word_size+slice_hi-1 downto 
 																			(i+(beam_delays_horz(hz)*beam_codes_horz(2) + beam_delays_vert(vt)*beam_codes_vert(2))) *
 																			define_word_size+slice_lo )),define_beam_bits)) +
-						
+						--
 						std_logic_vector(resize(signed(dat(3)( (i+(beam_delays_horz(hz)*beam_codes_horz(3) + beam_delays_vert(vt)*beam_codes_vert(3))) * 
 																			define_word_size+slice_hi-1 downto 
 																			(i+(beam_delays_horz(hz)*beam_codes_horz(3) + beam_delays_vert(vt)*beam_codes_vert(3))) *
@@ -328,7 +326,6 @@ begin
 	end loop;
 end process;
 
-
 --//calculate power	
 xPOWER_SUM : entity work.power_detector
 	port map(
@@ -336,7 +333,6 @@ xPOWER_SUM : entity work.power_detector
 		clk_i	 	=> clk_i,
 		reg_i		=> reg_i,
 		beams_i	=> internal_beams_pipe,
-		sum_pow_o=> internal_summed_power);					
-				
+		sum_pow_o=> internal_summed_power);							
 		
 end rtl;

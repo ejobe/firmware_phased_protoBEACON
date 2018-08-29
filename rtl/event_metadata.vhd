@@ -397,12 +397,13 @@ begin
 			internal_header_5(buf) <= internal_event_timestamp(47 downto 24);
 			internal_header_6(buf) <= internal_deadtime_counter;
 			internal_header_7(buf) <= current_buffer_i & reg_i(42)(0) & '0' & reg_i(76)(2 downto 0) & trig_type_i & "00000000000" & reg_i(79)(3 downto 0);
-			internal_header_8(buf) <= internal_gate & reg_i(48)(7 downto 0) & reg_i(80)(define_num_beams-1 downto 0);
+			internal_header_8(buf) <= internal_gate & reg_i(48)(7 downto 0) & "000" & x"000";
 			internal_header_9(buf) <= running_scaler_i; 
 			internal_header_10(buf)<= trig_last_beam_i;
 			internal_header_11(buf)<= x"0" & last_trig_pow_i(take_log2(to_integer(unsigned(trig_last_beam_i))));
 			internal_header_12(buf)<= internal_event_pps_count;
-			internal_header_12(buf)<= dynamic_beammask_i;
+			internal_header_13(buf)<= dynamic_beammask_i;
+			internal_header_14(buf)<= reg_i(80)(define_num_beams-1 downto 0);
 			
 --			internal_header_10(buf) <= x"0" & last_trig_pow_i(0);
 --			internal_header_11(buf) <= x"0" & last_trig_pow_i(1);
