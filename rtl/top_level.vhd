@@ -207,6 +207,7 @@ architecture rtl of top_level is
 	--//signal for power sums
 	signal powsum_ev2samples	: sum_power_type;
 	--//trigger signals
+	signal trigger_veto				: std_logic;
 	signal the_phased_trigger		: std_logic;
 	signal the_phased_trigger_off_board : std_logic;
 	signal the_ext_trigger_out 	: std_logic := '0';
@@ -351,10 +352,11 @@ begin
 		clk_iface_i	=> clock_31MHz_b,
 		reg_i			=> registers,
 		data_i		=>	wfm_data_filt, --wfm_data,
+		veto_o		=> trigger_veto,
 		beams_o		=> beam_data,
 		sum_pow_o	=> powsum_ev2samples);
 	--///////////////////////////////////////
-	xPHASEDTRIGGER : entity work.trigger_v5 --//trigger_v2 adds power 'verification' feature. 
+	xPHASEDTRIGGER : entity work.trigger_v5 
 	generic map( ENABLE_PHASED_TRIGGER => FIRMWARE_DEVICE)
 	port map(
 		rst_i					=> reset_global or reset_global_except_registers,
@@ -364,6 +366,7 @@ begin
 		powersums_i			=> powsum_ev2samples,
 		data_write_busy_i => data_manager_write_busy,
 		dynamic_beam_mask_i => dynamic_beam_mask,
+		veto_i				=> trigger_veto,
 		last_trig_pow_o	=> last_trig_power,
 		trig_beam_o			=> scalers_beam_trigs, 	--//trigger on sloower MHz clock in each beam (for scalers, beam-tagging)
 		trig_clk_data_copy_o => the_phased_trigger_off_board,
@@ -521,6 +524,7 @@ begin
 		status_reg_o			=> status_reg_data_manager,
 		status_reg_latched_o => status_reg_latched_data_manager,
 		dynamic_beammask_i	=> dynamic_beam_mask_clk_iface,
+		veto_i					=> trigger_veto,
 		wfm_data_i				=> wfm_data,
 		wfm_data_filt_i		=> wfm_data_filt,
 		running_scalers_i		=> running_scalers,

@@ -37,6 +37,7 @@ entity trigger_v5 is
 		
 		data_write_busy_i	:	in	std_logic; --//prevent triggers if triggered event is already being written to ram
 		dynamic_beam_mask_i :in	std_logic_vector(define_num_beams-1 downto 0);
+		veto_i				:	in	std_logic;
 		
 		last_trig_pow_o	:	inout	average_power_16samp_type; 
 		 
@@ -333,7 +334,7 @@ end process;
 --////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ------------------------------------------------------------------------------------------------------------------------------
 proc_buf_powsum : process(rst_i, clk_data_i, data_write_busy_i, internal_trig_en_reg, internal_trig_holdoff_count, internal_global_trigger_holdoff,
-									instantaneous_avg_power_0, instantaneous_avg_power_1, thresholds, dynamic_beam_mask_i)
+									instantaneous_avg_power_0, instantaneous_avg_power_1, thresholds, dynamic_beam_mask_i, veto_i)
 begin
 	for i in 0 to define_num_beams-1 loop
 		if rst_i = '1' or ENABLE_PHASED_TRIGGER = '0' then
@@ -435,8 +436,8 @@ begin
 						instantaneous_above_threshold(i) <= '0';
 						trigger_state_machine_state(i) <= idle_st;
 						
-					--//add dynamic masking HERE 8/29/2018
-					elsif dynamic_beam_mask_i(i) = '1' then
+					--//add dynamic masking HERE 8/29/2018 + vetoing 9/26/2018
+					elsif dynamic_beam_mask_i(i) = '0' or veto_i = '1' then
 						instantaneous_above_threshold(i) <= '0';
 						trigger_state_machine_state(i) <= idle_st;
 					

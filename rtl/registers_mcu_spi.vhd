@@ -204,11 +204,14 @@ begin
 		registers_io(108) <= x"000000";  --//write LSB to update internal temp sensor; LSB+1 to enable[108]
 		
 		--//filtering
-		registers_io(90) <= x"000001"; --// enable low pass to trigger path with LSB
+		registers_io(90) <= x"000000"; --// enable low pass to trigger path with LSB
 		
 		--//dynamic masking
 		registers_io(93) <= x"000105"; --// dynamic beam masking register
 		registers_io(94) <= x"000040"; --// dynamic beam masking register - lower 16 bits mask holdoff
+		--//trigger vetoing
+		registers_io(95) <= x"004003"; --// trigger veto bits. Second byte is the veto pulse width. Lowest byte is veto enables
+		registers_io(96) <= x"00007E"; --// saturation-level cut
 
 		--//trigger thresholds:
 		--registers_io(base_adrs_trig_thresh+0) <= x"0FFFFF";   --//[86] trigger threshold value 
@@ -312,7 +315,7 @@ begin
 			registers_io(34)<= dynamic_mask_i;
 			
 			--//assign event meta data
-			for j in 0 to 14 loop
+			for j in 0 to 17 loop
 				registers_io(j+10) <= event_metadata_i(j);
 			end loop;
 			--////////////////////////////////////////////////

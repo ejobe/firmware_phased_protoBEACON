@@ -44,7 +44,8 @@ entity data_manager is
 		pps_latch_reg_i			:	in		std_logic_vector(1 downto 0);
 		pps_latched_timestamp_o	:	out	std_logic_vector(47 downto 0);
 		dynamic_beammask_i		:	in		std_logic_vector(define_num_beams-1 downto 0);
-
+		veto_i				: in	std_logic;
+		
 		--//waveform data	
 		wfm_data_i				:	in	 	full_data_type;
 		wfm_data_filt_i		:	in	 	full_data_type;
@@ -621,6 +622,7 @@ port map(
 	pps_latch_reg_i	=> pps_latch_reg_i,
 	latched_timestamp_o=> pps_latched_timestamp_o,
 	dynamic_beammask_i=> dynamic_beammask_i,
+	veto_i				=> veto_i,
 	reg_i				 	=> reg_i,		
 	event_header_o	 	=> event_meta_o);
 ------------------------------------------------------------------------------------------------------------------------------

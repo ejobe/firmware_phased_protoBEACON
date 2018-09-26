@@ -60,6 +60,7 @@ entity beacon_beamforming is
 		reg_i			: 	in		register_array_type;
 		data_i		:	in	   full_data_type;
 		
+		veto_o		:	out	std_logic;
 		beams_o		:	out	array_of_beams_type;   
 		sum_pow_o	:	out	sum_power_type);
 		
@@ -77,7 +78,7 @@ signal buf_data_5 		: 	full_data_type;
 signal buf_data_6 		: 	full_data_type;
 signal buf_data_7 		: 	full_data_type;
 signal buf_data_8 		: 	full_data_type;
-signal pol_data			:	full_data_type;
+signal pol_data			:	halfpol_data_type;
 
 signal channel_mask		: full_data_type; --//added 5/8/2018
 signal channel_mask_meta: full_data_type; --//added 5/8/2018
@@ -123,7 +124,11 @@ type coh_sum_type is array (beam_delays_horz'length downto 0,
 									beam_delays_vert'length downto 0,
 									2*define_serdes_factor*define_word_size-1 downto 0)
 									of std_logic_vector(define_beam_bits-1 downto 0);
+
 signal coh_sum : coh_sum_type;
+signal coh_sum_horz : coh_sum_type;
+signal coh_sum_vert : coh_sum_type;
+
 
 --//------------------------------------------------------------------
 --//
@@ -275,7 +280,9 @@ begin
 				for vt in 0 to beam_delays_vert'length-1 loop
 					
 					coh_sum(hz, vt, i) <= (others=>'0');
-			
+					coh_sum_horz(hz, vt, i) <= (others=>'0');
+					coh_sum_vert(hz, vt, i) <= (others=>'0');
+
 				end loop;
 			end loop;	
 				
@@ -298,26 +305,50 @@ begin
 					--//protoBEACON: 8 antennas - 4 of each pol so Coh. sum made from 4 adc channels
 					--//
 					--// calculate antenna shift as such:
-					--//     horz_code (ant) * horz_delay (beam) + vert_code (ant) * vert_delay (beam)
-					coh_sum (hz, vt, i) <= 
-						std_logic_vector(resize(signed(dat(0)(	(i+(beam_delays_horz(hz)*beam_codes_horz(0) + beam_delays_vert(vt)*beam_codes_vert(0))) * 
+					--//     coh_sum[horz_code (ant) * horz_delay (beam)] + coh_sum[vert_code (ant) * vert_delay (beam)]
+					
+					coh_sum(hz, vt, i) <= coh_sum_horz(hz, vt, i) + coh_sum_vert(hz, vt, i);
+					--
+					coh_sum_horz (hz, vt, i) <= 
+						std_logic_vector(resize(signed(dat(0)(	(i+(beam_delays_horz(hz)*beam_codes_horz(0) )) * 
 																			define_word_size+slice_hi-1 downto 
-																			(i+(beam_delays_horz(hz)*beam_codes_horz(0) + beam_delays_vert(vt)*beam_codes_vert(0))) *
+																			(i+(beam_delays_horz(hz)*beam_codes_horz(0) )) *
 																			define_word_size+slice_lo )),define_beam_bits)) +
 				
-						std_logic_vector(resize(signed(dat(1)(	(i+(beam_delays_horz(hz)*beam_codes_horz(1) + beam_delays_vert(vt)*beam_codes_vert(1))) * 
+						std_logic_vector(resize(signed(dat(1)(	(i+(beam_delays_horz(hz)*beam_codes_horz(1) )) * 
 																			define_word_size+slice_hi-1 downto 
-																			(i+(beam_delays_horz(hz)*beam_codes_horz(1) + beam_delays_vert(vt)*beam_codes_vert(1))) *
+																			(i+(beam_delays_horz(hz)*beam_codes_horz(1) )) *
 																			define_word_size+slice_lo )),define_beam_bits)) +
 						--
-						std_logic_vector(resize(signed(dat(2)(	(i+(beam_delays_horz(hz)*beam_codes_horz(2) + beam_delays_vert(vt)*beam_codes_vert(2))) * 
+						std_logic_vector(resize(signed(dat(2)(	(i+(beam_delays_horz(hz)*beam_codes_horz(2))) * 
 																			define_word_size+slice_hi-1 downto 
-																			(i+(beam_delays_horz(hz)*beam_codes_horz(2) + beam_delays_vert(vt)*beam_codes_vert(2))) *
+																			(i+(beam_delays_horz(hz)*beam_codes_horz(2) )) *
 																			define_word_size+slice_lo )),define_beam_bits)) +
 						--
-						std_logic_vector(resize(signed(dat(3)( (i+(beam_delays_horz(hz)*beam_codes_horz(3) + beam_delays_vert(vt)*beam_codes_vert(3))) * 
+						std_logic_vector(resize(signed(dat(3)( (i+(beam_delays_horz(hz)*beam_codes_horz(3) )) * 
 																			define_word_size+slice_hi-1 downto 
-																			(i+(beam_delays_horz(hz)*beam_codes_horz(3) + beam_delays_vert(vt)*beam_codes_vert(3))) *
+																			(i+(beam_delays_horz(hz)*beam_codes_horz(3) )) *
+																			define_word_size+slice_lo )),define_beam_bits));
+					--
+					coh_sum_vert (hz, vt, i) <= 						
+						std_logic_vector(resize(signed(dat(0)(	(i+(beam_delays_vert(vt)*beam_codes_vert(0))) * 
+																			define_word_size+slice_hi-1 downto 
+																			(i+( beam_delays_vert(vt)*beam_codes_vert(0))) *
+																			define_word_size+slice_lo )),define_beam_bits)) +
+				
+						std_logic_vector(resize(signed(dat(1)(	(i+(beam_delays_vert(vt)*beam_codes_vert(1))) * 
+																			define_word_size+slice_hi-1 downto 
+																			(i+(beam_delays_vert(vt)*beam_codes_vert(1))) *
+																			define_word_size+slice_lo )),define_beam_bits)) +
+						--
+						std_logic_vector(resize(signed(dat(2)(	(i+( beam_delays_vert(vt)*beam_codes_vert(2))) * 
+																			define_word_size+slice_hi-1 downto 
+																			(i+(beam_delays_vert(vt)*beam_codes_vert(2))) *
+																			define_word_size+slice_lo )),define_beam_bits)) +
+						--
+						std_logic_vector(resize(signed(dat(3)( (i+(beam_delays_vert(vt)*beam_codes_vert(3))) * 
+																			define_word_size+slice_hi-1 downto 
+																			(i+(beam_delays_vert(vt)*beam_codes_vert(3))) *
 																			define_word_size+slice_lo )),define_beam_bits));
 				end loop;
 			end loop;
@@ -333,6 +364,16 @@ xPOWER_SUM : entity work.power_detector
 		clk_i	 	=> clk_i,
 		reg_i		=> reg_i,
 		beams_i	=> internal_beams_pipe,
-		sum_pow_o=> internal_summed_power);							
+		sum_pow_o=> internal_summed_power);		
+
+xTRIGGER_VETO : entity work.trigger_veto
+	port map(
+		rst_i			=> rst_i,
+		clk_i			=> clk_i,
+		clk_iface_i	=> clk_iface_i,
+		reg_i			=> reg_i,
+		data_i		=> pol_data,
+		veto_o		=> veto_o);
 		
 end rtl;
+		

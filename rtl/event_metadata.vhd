@@ -45,7 +45,7 @@ entity event_metadata is
 		latched_timestamp_o	:  out std_logic_vector(47 downto 0);
 		
 		dynamic_beammask_i	: in std_logic_vector(define_num_beams-1 downto 0);
-			
+		veto_i				:	in	std_logic;
 		reg_i					:	in		register_array_type;
 		event_header_o		:	out	event_metadata_type);
 		
@@ -71,10 +71,10 @@ signal internal_header_11 : internal_header_type;
 signal internal_header_12 : internal_header_type;
 signal internal_header_13 : internal_header_type;
 signal internal_header_14 : internal_header_type;
---signal internal_header_15 : internal_header_type;
---signal internal_header_16 : internal_header_type;
---signal internal_header_17 : internal_header_type;
---signal internal_header_18 : internal_header_type;
+signal internal_header_15 : internal_header_type;
+signal internal_header_16 : internal_header_type;
+signal internal_header_17 : internal_header_type;
+signal internal_header_18 : internal_header_type;
 --signal internal_header_19 : internal_header_type;
 --signal internal_header_20 : internal_header_type;
 --signal internal_header_21 : internal_header_type;
@@ -85,6 +85,9 @@ signal internal_header_14 : internal_header_type;
 
 signal internal_buffer_full : std_logic; 
 signal internal_deadtime_counter : std_logic_vector(23 downto 0);
+signal internal_veto : std_logic; 
+signal internal_veto_counter : std_logic_vector(23 downto 0);
+
 signal internal_trig : std_logic;
 signal internal_trig_reg : std_logic_vector(2 downto 0);
 signal internal_get_meta_data: std_logic;
@@ -186,7 +189,13 @@ port map(
 	clkB			=> clk_iface_i,
 	SignalIn_clkA		=> buffers_full_i,
 	SignalOut_clkB		=> internal_buffer_full);
-		
+xVETOSYNC : signal_sync 
+port map(
+	clkA 			=> clk_i,
+	clkB			=> clk_iface_i,
+	SignalIn_clkA		=> veto_i,
+	SignalOut_clkB		=> internal_veto);
+			
 xDEADTIMECOUNTER : scaler
 generic map(
 	WIDTH => 24)
@@ -196,6 +205,16 @@ port map(
 	refresh_i => clk_refrsh_i, --//1 Hz refresh clock
 	count_i => internal_buffer_full,
 	scaler_o => internal_deadtime_counter);
+	
+xVETOTIMECOUNTER : scaler
+generic map(
+	WIDTH => 24)
+port map(
+	rst_i => rst_i,
+	clk_i => clk_iface_i,
+	refresh_i => clk_refrsh_i, --//1 Hz refresh clock
+	count_i => internal_veto,
+	scaler_o => internal_veto_counter);
 ------------------------------------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------------------------------------
 --//stuff to latch timestamp on external trigger input (i.e. PPS input)	
@@ -347,7 +366,7 @@ begin
 				internal_header_12(i) <= (others=>'0');
 				internal_header_13(i) <= (others=>'0');
 				internal_header_14(i) <= (others=>'0');
---				internal_header_15(i) <= (others=>'0');			
+				internal_header_15(i) <= (others=>'0');			
 --				internal_header_16(i) <= (others=>'0');			
 --				internal_header_17(i) <= (others=>'0');
 --				internal_header_18(i) <= (others=>'0');
@@ -376,7 +395,7 @@ begin
 				internal_header_12(i) <= (others=>'0');
 				internal_header_13(i) <= (others=>'0');
 				internal_header_14(i) <= (others=>'0');
---				internal_header_15(i) <= (others=>'0');			
+				internal_header_15(i) <= (others=>'0');			
 --				internal_header_16(i) <= (others=>'0');			
 --				internal_header_17(i) <= (others=>'0');
 --				internal_header_18(i) <= (others=>'0');
@@ -404,7 +423,8 @@ begin
 			internal_header_12(buf)<= internal_event_pps_count;
 			internal_header_13(buf)<= dynamic_beammask_i;
 			internal_header_14(buf)<= reg_i(80)(define_num_beams-1 downto 0);
-			
+			internal_header_15(buf)<= internal_veto_counter;
+
 --			internal_header_10(buf) <= x"0" & last_trig_pow_i(0);
 --			internal_header_11(buf) <= x"0" & last_trig_pow_i(1);
 --			internal_header_12(buf) <= x"0" & last_trig_pow_i(2);
@@ -428,7 +448,7 @@ variable n : integer range 0 to 3 := 0;
 begin
 	if rst_i = '1' then
 		n:=0;
-		for i in 0 to 14 loop	
+		for i in 0 to 15 loop	
 			event_header_o(0) <= (others=>'1');
 		end loop;
 	elsif rising_edge(clk_iface_i) then
@@ -448,7 +468,7 @@ begin
 		event_header_o(12) <= internal_header_12(n);
 		event_header_o(13) <= internal_header_13(n);
 		event_header_o(14) <= internal_header_14(n);
---		event_header_o(15) <= internal_header_15(n);	
+		event_header_o(15) <= internal_header_15(n);	
 --		event_header_o(16) <= internal_header_16(n);
 --		event_header_o(17) <= internal_header_17(n);
 --		event_header_o(18) <= internal_header_18(n);

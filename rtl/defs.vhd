@@ -44,14 +44,16 @@ constant define_register_size				:	integer := 32;
 
 type adc_output_data_type is array (3 downto 0) of std_logic_vector(define_adc_data_width-1 downto 0);
 type full_data_type	is array	(7 downto 0) of std_logic_vector(define_ram_width-1 downto 0);	
+type halfpol_data_type	is array	(3 downto 0) of std_logic_vector(define_ram_width-1 downto 0);	
 type ram_adr_chunked_data_type is array(3 downto 0) of std_logic_vector(31 downto 0);
 type full_address_type	is array	(7 downto 0) of std_logic_vector(define_ram_depth-1 downto 0);	
 type half_address_type  is array	(3 downto 0) of std_logic_vector(define_ram_depth-1 downto 0);	
 type two_chan_address_type is array	(1 downto 0) of std_logic_vector(define_ram_depth-1 downto 0);
 type full_data_address_type	is array	(7 downto 0) of std_logic_vector(define_data_ram_depth-1 downto 0);	
+
 type aux_data_link_type is array (1 downto 0) of std_logic_vector(7 downto 0);
 
-type event_metadata_type is array(14 downto 0) of std_logic_vector(23 downto 0);
+type event_metadata_type is array(17 downto 0) of std_logic_vector(23 downto 0);
 
 type rx_data_delay_type is array (7 downto 0) of std_logic_vector(3 downto 0); --//delay range for rx data to align ADCs
 type buffered_data_type is array (7 downto 0) of std_logic_vector(2*define_ram_width-1 downto 0);
@@ -63,8 +65,8 @@ type register_array_type is array (255 downto 0)
 --////////////////////////////////////////////////
 --///////////////////////////////////////////////////////////////////////////////////////////////////
 --//FIRMWARE INFORMATION
-constant firmware_version 	: std_logic_vector(define_register_size-define_address_size-1 downto 0) := x"00000E";
-constant firmware_date 		: std_logic_vector(define_register_size-define_address_size-1 downto 0) := x"7e2" & x"8" & x"1C";
+constant firmware_version 	: std_logic_vector(define_register_size-define_address_size-1 downto 0) := x"000012";
+constant firmware_date 		: std_logic_vector(define_register_size-define_address_size-1 downto 0) := x"7e2" & x"9" & x"1A";
 --///////////////////////////////////////////////////////////////////////////////////////////////////
 --///////////////////////////////////////////////
 
