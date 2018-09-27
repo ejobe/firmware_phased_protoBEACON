@@ -33,7 +33,6 @@ entity trigger_veto is
 		
 end trigger_veto;
 
-
 architecture rtl of trigger_veto is
 
 signal buf_data_0 		: 	halfpol_data_type;
@@ -41,19 +40,21 @@ signal buf_data_1 		: 	halfpol_data_type;
 signal buf_data_2 		: 	halfpol_data_type;
 signal buf_data_3 		: 	halfpol_data_type;
 signal buf_data_4 		: 	halfpol_data_type;
+signal buf_data_5 		: 	halfpol_data_type;
 
 --//buffer the data 5x every clock cycle --> allows beam-forming +/- the central buffer
-type internal_buf_data_type is array (3 downto 0) of std_logic_vector(5*pdat_size-1 downto 0); --16 * 5 = 80 samples deep buffer
+type internal_buf_data_type is array (3 downto 0) of std_logic_vector(6*pdat_size-1 downto 0); --16 * 5 = 80 samples deep buffer
 signal dat : internal_buf_data_type;
 
-constant slice_base : integer := 3*pdat_size; 
+constant slice_base : integer := 4*pdat_size; 
 -------------------------------------------------------------------------------
 --//veto enables
 signal internal_sat_veto_en : std_logic; 
 signal internal_cw_veto_en  : std_logic;
+--//generated veto signal
+signal veto: std_logic; --//trigger veto based on extended pulse saturation
 -------------------------------------------------------------------------------
 --//extended signal saturation veto signal (or more generally, a time-over-theshold veto)
-signal sat_veto: std_logic; --//trigger veto based on extended pulse saturation
 signal sat_veto_cut_value : std_logic_vector(7 downto 0);
 signal internal_sat_veto: std_logic_vector(3 downto 0); --//per-trigger-channel veto based on extended pulse saturation
 type sat_veto_reg_type is array (3 downto 0) of std_logic_vector(6 downto 0);
@@ -65,18 +66,23 @@ signal internal_sat_veto_tmp : sat_veto_type;
 constant clock_cycles_saturated : integer := 3; --//3 * 1/31.25MHz = 96 ns 
 -------------------------------------------------------------------------------
 --//low-band cw veto signals
-signal cw_veto : std_logic; --//the cw veto
+signal cw_veto_cut_value : std_logic_vector(7 downto 0);
+
 signal internal_cw_veto: std_logic_vector(3 downto 0); --//per-trigger-channel veto based on low band cw
 
 type internal_delay_and_sum_waveform_type is array (3 downto 0) of std_logic_vector(2*pdat_size-1 downto 0);
 signal internal_delay_and_sum_waveform : internal_delay_and_sum_waveform_type;
 signal internal_normal_waveform : internal_delay_and_sum_waveform_type;
 
+type internal_vpp_type is array (3 downto 0) of integer range -1 to 512;
+signal internal_vpp_wfm : internal_vpp_type;
+signal internal_vpp_summed_wfm : internal_vpp_type;
+
 signal internal_cw_veto_reg: sat_veto_reg_type;
 
 constant clock_cycles_cw : integer := 2;
-constant sample_delay : integer := 37; --//number of samples to delay added signal
-constant delay_sum_ratio : integer := 50;  --//cut value. make this programmable eventually, duh
+constant sample_delay : integer := 50; --//number of samples to delay added signal
+--constant delay_sum_ratio : integer := 50;  --//cut value. make this programmable eventually, duh
 -------------------------------------------------------------------------------
 --//signals for generating veto pulse
 type veto_pulse_state_type is (idle_st, pulse_st);
@@ -130,27 +136,43 @@ begin
 	end if;
 end function get_vpp;
 --//
-function get_vpp_ratio(s1,s2 : std_logic_vector) return std_logic is
-	variable vpp1 : integer := 1;
-	variable vpp2 : integer := 1;
+--function get_vpp_ratio(s1,s2 : std_logic_vector) return std_logic is
+--	variable vpp1 : integer := 1;
+--	variable vpp2 : integer := 1;
+--	variable ratio : integer:= 1;
+--begin
+--	vpp1 := get_vpp(s1);
+--	vpp2 := get_vpp(s2);
+--	
+--	if vpp1 = 1 or vpp2 = 1 then
+--		return '0';
+--	end if;
+--	
+--	ratio := vpp2-vpp1;
+--	
+--	if ratio <= delay_sum_ratio then
+--		return '0';
+--	else
+--		return '1';
+--	end if;
+--end function get_vpp_ratio;
+--//
+function get_vpp_ratio(vpp1,vpp2,cut : integer) return std_logic is
 	variable ratio : integer:= 1;
 begin
-	vpp1 := get_vpp(s1);
-	vpp2 := get_vpp(s2);
-	
+
 	if vpp1 = 1 or vpp2 = 1 then
 		return '0';
 	end if;
 	
 	ratio := vpp2-vpp1;
 	
-	if ratio <= delay_sum_ratio then
+	if ratio <= cut then
 		return '0';
 	else
 		return '1';
 	end if;
 end function get_vpp_ratio;
---//
 begin
 --------------------------------------------
 xSAT_VETO_SELECT : signal_sync
@@ -175,7 +197,7 @@ VetoWidth	:	 for i in 0 to 7 generate
 		SignalIn_clkA	=> reg_i(95)(8+i), 
 		SignalOut_clkB	=> internal_veto_pulse_width(i));
 end generate;
-
+--//
 SatCut	:	 for i in 0 to 7 generate	
 	xSAT_CUT : signal_sync
 	port map(
@@ -183,6 +205,14 @@ SatCut	:	 for i in 0 to 7 generate
 		clkB				=> clk_i,
 		SignalIn_clkA	=> reg_i(96)(i), 
 		SignalOut_clkB	=> sat_veto_cut_value(i));
+end generate;
+CWCut	:	 for i in 0 to 7 generate	
+	xCW_CUT : signal_sync
+	port map(
+		clkA				=> clk_iface_i,
+		clkB				=> clk_i,
+		SignalIn_clkA	=> reg_i(96)(i+8), 
+		SignalOut_clkB	=> cw_veto_cut_value(i));
 end generate;
 --------------------------------------------
 --------------//
@@ -198,13 +228,15 @@ begin
 			buf_data_2(i)<= (others=>'0');
 			buf_data_3(i)<= (others=>'0');		
 			buf_data_4(i)<= (others=>'0');		
+			buf_data_5(i)<= (others=>'0');		
 
 			dat(i) <= (others=>'0');
 			
 		elsif rising_edge(clk_i) then
 			--//buffer data
-			dat(i) <= buf_data_0(i) & buf_data_1(i) & buf_data_2(i) & buf_data_3(i) & buf_data_4(i);	
-			
+			dat(i) <= buf_data_0(i) & buf_data_1(i) & buf_data_2(i) & buf_data_3(i) & buf_data_4(i) & buf_data_5(i);
+		
+			buf_data_5(i) <= buf_data_4(i);
 			buf_data_4(i) <= buf_data_3(i);
 			buf_data_3(i) <= buf_data_2(i);
 			buf_data_2(i) <= buf_data_1(i);
@@ -226,7 +258,7 @@ begin
 		if rst_i = '1' then
 			
 			internal_sat_veto(ch) 		<= '0';           --//the per-channel veto
-			internal_sat_veto_reg(ch)	<=(others=>'0');  --//veto register, to determine if signal is saturated for a number of clock cycles 
+			internal_sat_veto_reg(ch)	<= (others=>'0');  --//veto register, to determine if signal is saturated for a number of clock cycles 
 			internal_sat_veto_tmp(ch) 	<= (others=>'0'); --//this vector checks each data word in a single clock cycle
 			
 		elsif rising_edge(clk_i) and internal_sat_veto_en = '0'  then
@@ -264,7 +296,7 @@ end process;
 --------------//
 --for pulses with significant low-band CW, a delay-and-sum method is employed as a veto
 --A trigger channel pulse is delayed (by ~64 ns) and added to itself. A significant boost in in amplitude suggests pulse should be vetoed
-proc_pulse_cw_veto : process(rst_i, clk_i, dat, internal_cw_veto_en, sat_veto)
+proc_pulse_cw_veto : process(rst_i, clk_i, dat, internal_cw_veto_en)
 begin
 	--//loop over trigger channels
 	for ch in 0 to 3 loop
@@ -274,21 +306,33 @@ begin
 			internal_cw_veto(ch) 					<= '0';           --//the per-channel veto
 			internal_delay_and_sum_waveform(ch) <= (others=>'0');
 			internal_normal_waveform(ch)			<= (others=>'0');
-			internal_cw_veto_reg(ch)				<=(others=>'0');
+			internal_cw_veto_reg(ch)				<= (others=>'0');
+			internal_vpp_wfm(ch)						<= 0;
+			internal_vpp_summed_wfm(ch)			<= 0;
 			
 		elsif rising_edge(clk_i) and internal_cw_veto_en = '0'  then
 
 			internal_cw_veto(ch) 					<= '0';
 			internal_delay_and_sum_waveform(ch) <= (others=>'0');
 			internal_normal_waveform(ch)			<= (others=>'0');
-			internal_cw_veto_reg(ch)				<=(others=>'0');
+			internal_cw_veto_reg(ch)				<= (others=>'0');
+			internal_vpp_wfm(ch)						<= 0;
+			internal_vpp_summed_wfm(ch)			<= 0;
 
 		elsif rising_edge(clk_i) and internal_cw_veto_en = '1'  then
 
 			--//require 2 adjacent flagged time bins to veto:
-			internal_cw_veto(ch) <= internal_cw_veto_reg(ch)(clock_cycles_cw+1) and internal_sat_veto_reg(ch)(clock_cycles_cw);	
+			--internal_cw_veto(ch) <= internal_cw_veto_reg(ch)(clock_cycles_cw+1) and internal_sat_veto_reg(ch)(clock_cycles_cw);
+			--//require a single clock cycle:
+			internal_cw_veto(ch) <= internal_sat_veto_reg(ch)(clock_cycles_cw);	
+
 			--//use get_vpp_ratio function to add veto to register:
-			internal_cw_veto_reg(ch) <= internal_cw_veto_reg(ch)(5 downto 0) & get_vpp_ratio(internal_normal_waveform(ch), internal_delay_and_sum_waveform(ch));
+			internal_cw_veto_reg(ch) <= internal_cw_veto_reg(ch)(5 downto 0) & get_vpp_ratio(internal_vpp_wfm(ch), internal_vpp_summed_wfm(ch), 
+																												to_integer(unsigned(cw_veto_cut_value)));
+		
+			--//get vpp values:
+			internal_vpp_wfm(ch)						<= get_vpp(internal_normal_waveform(ch));
+			internal_vpp_summed_wfm(ch)			<= get_vpp(internal_delay_and_sum_waveform(ch));
 		
 			for j in 0 to 4*define_serdes_factor-1 loop
 				internal_normal_waveform(ch)((j+1)*define_word_size-1 downto j*define_word_size) <= 
@@ -314,7 +358,7 @@ proc_make_veto_pulse : process(rst_i, clk_i, internal_sat_veto, internal_cw_veto
 begin
 	if rst_i = '1' then
 
-		sat_veto <= '0';
+		veto <= '0';
 		internal_veto_pulse_width_counter <= (others=>'0');
 		veto_pulse_state <= idle_st;
 	
@@ -323,7 +367,7 @@ begin
 		case veto_pulse_state is
 		
 			when idle_st =>
-				sat_veto <= '0';
+				veto <= '0';
 				internal_veto_pulse_width_counter <= (others=>'0');
 
 				--//saturation veto, for now this is simply an OR of all trigger chans:
@@ -345,7 +389,7 @@ begin
 				end if;
 					
 			when pulse_st =>
-				sat_veto <= '1';
+				veto <= '1';
 				internal_veto_pulse_width_counter <= internal_veto_pulse_width_counter + 1;
 				
 				if internal_veto_pulse_width_counter >= internal_veto_pulse_width then
@@ -359,7 +403,7 @@ begin
 end process;
 
 
---//only a single veto, for now
-veto_o <= sat_veto;
+--//assign veto
+veto_o <= veto;
 
 end rtl;

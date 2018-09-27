@@ -44,10 +44,10 @@ entity event_metadata is
 		pps_latch_reg_i		:	in	std_logic_vector(1 downto 0);
 		latched_timestamp_o	:  out std_logic_vector(47 downto 0);
 		
-		dynamic_beammask_i	: in std_logic_vector(define_num_beams-1 downto 0);
-		veto_i				:	in	std_logic;
-		reg_i					:	in		register_array_type;
-		event_header_o		:	out	event_metadata_type);
+		dynamic_beammask_i	: 	in 	std_logic_vector(define_num_beams-1 downto 0);
+		veto_i					:	in		std_logic;
+		reg_i						:	in		register_array_type;
+		event_header_o			:	out	event_metadata_type);
 		
 end event_metadata;
 

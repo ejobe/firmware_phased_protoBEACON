@@ -234,7 +234,7 @@ begin
 		end if;
 	end loop;
 end process;
---//
+--//-------------------------
 --//pipeline beams to output
 proc_pipe_beams : process(rst_i, clk_i, internal_beam_enable)
 begin

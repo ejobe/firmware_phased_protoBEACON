@@ -210,8 +210,8 @@ begin
 		registers_io(93) <= x"000105"; --// dynamic beam masking register
 		registers_io(94) <= x"000040"; --// dynamic beam masking register - lower 16 bits mask holdoff
 		--//trigger vetoing
-		registers_io(95) <= x"004003"; --// trigger veto bits. Second byte is the veto pulse width. Lowest byte is veto enables
-		registers_io(96) <= x"00007E"; --// saturation-level cut
+		registers_io(95) <= x"003003"; --// trigger veto bits. Second byte is the veto pulse width. Lowest byte is veto enables
+		registers_io(96) <= x"00327E"; --// veto cut values
 
 		--//trigger thresholds:
 		--registers_io(base_adrs_trig_thresh+0) <= x"0FFFFF";   --//[86] trigger threshold value 
