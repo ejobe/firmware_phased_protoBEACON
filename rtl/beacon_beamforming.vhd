@@ -129,7 +129,6 @@ signal coh_sum : coh_sum_type;
 signal coh_sum_horz : coh_sum_type;
 signal coh_sum_vert : coh_sum_type;
 
-
 --//------------------------------------------------------------------
 --//
 component signal_sync is

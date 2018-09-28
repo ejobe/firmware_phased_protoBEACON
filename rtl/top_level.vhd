@@ -208,6 +208,7 @@ architecture rtl of top_level is
 	signal powsum_ev2samples	: sum_power_type;
 	--//trigger signals
 	signal trigger_veto				: std_logic;
+	signal extnd_power_veto			: std_logic;
 	signal the_phased_trigger		: std_logic;
 	signal the_phased_trigger_off_board : std_logic;
 	signal the_ext_trigger_out 	: std_logic := '0';
@@ -369,6 +370,7 @@ begin
 		veto_i				=> trigger_veto,
 		last_trig_pow_o	=> last_trig_power,
 		trig_beam_o			=> scalers_beam_trigs, 	--//trigger on sloower MHz clock in each beam (for scalers, beam-tagging)
+		veto_flag_o			=> extnd_power_veto,
 		trig_clk_data_copy_o => the_phased_trigger_off_board,
 		trig_clk_data_o	=> the_phased_trigger,	--//OR of all beam triggers on 93 MHz data clock, maskable. Triggers event saving in data_manager module
 		last_trig_beam_clk_data_o => last_trig_beams,
@@ -524,7 +526,7 @@ begin
 		status_reg_o			=> status_reg_data_manager,
 		status_reg_latched_o => status_reg_latched_data_manager,
 		dynamic_beammask_i	=> dynamic_beam_mask_clk_iface,
-		veto_i					=> trigger_veto,
+		veto_i					=> trigger_veto or extnd_power_veto,
 		wfm_data_i				=> wfm_data,
 		wfm_data_filt_i		=> wfm_data_filt,
 		running_scalers_i		=> running_scalers,
@@ -582,6 +584,7 @@ begin
 		remote_upgrade_status_i			=> remote_upgrade_status,
 		pps_timestamp_to_read_i			=> pps_timestamp_to_read,
 		dynamic_mask_i						=> dynamic_beam_mask_clk_iface,
+		veto_status_i						=> trigger_veto & extnd_power_veto,
 		--//////////////////////////
 		write_reg_i		=> mcu_data_pkt_32bit,
 		write_rdy_i		=> mcu_rx_rdy,

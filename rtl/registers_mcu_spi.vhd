@@ -43,6 +43,7 @@ entity registers_mcu_spi is
 		remote_upgrade_status_i			:  in		std_logic_vector(23 downto 0);
 		pps_timestamp_to_read_i			:	in		std_logic_vector(47 downto 0);
 		dynamic_mask_i						:  in		std_logic_vector(define_num_beams-1 downto 0);
+		veto_status_i						:	in		std_logic_vector(1 downto 0);
 		--////////////////////////////
 		write_reg_i		:	in		std_logic_vector(define_register_size-1 downto 0); --//input data
 		write_rdy_i		:	in		std_logic; --//data ready to be written in spi_slave
@@ -311,7 +312,8 @@ begin
 			registers_io(3) <= scaler_to_read_i;
 			registers_io(7) <= status_data_manager_i; 
 			registers_io(8) <= status_adc_i; 
-			registers_io(9) <= status_data_manager_latched_i; 
+			registers_io(9) <= status_data_manager_latched_i;
+			registers_io(33)(1 downto 0) <= veto_status_i;	
 			registers_io(34)<= dynamic_mask_i;
 			
 			--//assign event meta data

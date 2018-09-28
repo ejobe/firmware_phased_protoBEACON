@@ -43,6 +43,8 @@ entity trigger_v5 is
 		 
 		trig_beam_o						:	out	std_logic_vector(define_num_beams-1 downto 0); --//for scalers
 
+		veto_flag_o						:	out 	std_logic;
+		
 		trig_clk_data_o				:	inout	std_logic;  --//trig flag on faster clock
 		trig_clk_data_copy_o			:	out	std_logic;  --//trig flag on faster clock, delayed by one clk cycle
 		last_trig_beam_clk_data_o 	: 	inout std_logic_vector(define_num_beams-1 downto 0); --//register the beam trigger 
@@ -78,7 +80,7 @@ signal thresholds  : average_power_16samp_type;
 --signal set_threshold_in_beam_number : integer range 0 to 31 := 0;
 
 signal internal_trig_en_reg : std_logic_vector(2 downto 0) := (others=>'0'); --//for clk transfer
-
+--//----------------------
 --//here's the trigger state machine, which looks for power-above-threshold in each beam and checks for stuck-on beams
 type trigger_state_machine_state_type is (idle_st, trig_high_st, trig_hold_1_st, trig_hold_2_st, trig_done_st);
 type trigger_state_machine_state_array_type is array(define_num_beams-1 downto 0) of trigger_state_machine_state_type;
@@ -99,21 +101,26 @@ signal internal_trigger_beam_mask_from_sw :  std_logic_vector(define_num_beams-1
 signal internal_trigger_beam_mask :  std_logic_vector(define_num_beams-1 downto 0);
 
 signal internal_trig_clk_data : std_logic;
-
---//trig verification signals (new in v2 trig module)
-type trig_verification_state_type is (idle_st, trig_start_st,  trig_verify_1_st, trig_verify_2_st, trig_high_st, trig_hold_st, done_st);
+--//----------------------
+--//trig verification signals --
+type trig_verification_state_type is (idle_st, trig_start_st,  trig_wait_1_st, trig_wait_2_st, trig_wait_3_st, trig_verify_1_st, 
+													trig_verify_2_st, trig_high_st, trig_hold_st, done_st);
 signal trig_verification_state : trig_verification_state_type;
 signal verfication_trig_flag : std_logic;
 signal internal_trig_verification_mode : std_logic := '1';
 signal verification_beam : integer := 0;
---signal verification_counter : std_logic_vector(3 downto 0);
---signal verification_current_max_beam : std_logic_vector(3 downto 0);
+
 signal verified_latched_trig_beam : std_logic_vector(define_num_beams-1 downto 0);
 signal verified_instantaneous_above_threshold : std_logic_vector(define_num_beams-1 downto 0);
 signal verified_instantaneous_above_threshold_buf : std_logic_vector(define_num_beams-1 downto 0);
 signal verified_instantaneous_above_threshold_buf2 : std_logic_vector(define_num_beams-1 downto 0);
 
 signal trig_clk_data_pipe : std_logic_vector(1 downto 0);
+--//----------------------
+--//extended signal veto, if power exceeds 5 clock cycles (cw rejection, basically)
+signal internal_extended_perbeam_power_veto : std_logic_vector(define_num_beams-1 downto 0);
+signal internal_extended_power_veto : std_logic;
+--//----------------------
 ------------------------------------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------------------------------------
 component flag_sync is
@@ -219,6 +226,7 @@ begin
 		internal_trig_pow_latch_1_reg <= (others=>'0');
 		internal_data_manager_write_busy_reg <= (others=>'0');
 		verfication_trig_flag <= '0';
+
 	---------------------------------------------------------------------------------------------
 	elsif rising_edge(clk_data_i) then
 	
@@ -262,6 +270,8 @@ end process;
 ------------------------------------------------------------------------------------------------------------------------------
 --////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ------------------------------------------------------------------------------------------------------------------------------
+veto_flag_o <= internal_extended_power_veto;
+--
 proc_trig_verify : process(rst_i, clk_data_i, thresholds, verfication_trig_flag, last_trig_pow_o, internal_trig_holdoff_count,
 									internal_last_trig_latched_beam_pattern_buf, internal_trig_verification_mode)
 begin
@@ -275,26 +285,43 @@ begin
 		-----------------
 		last_trig_beam_clk_data_o <= (others=>'0');
 		verification_beam <= 0;
-		--verification_counter <= (others=>'0');
-		--verification_current_max_beam <= (others=>'0');
 		verified_latched_trig_beam <= (others=>'0');
+		
+		--//veto
+		internal_extended_power_veto <= '0';
+		--//
 		trig_verification_state <= idle_st;
 	---------------------------------------------------------------------------------------------
 	elsif rising_edge(clk_data_i) then
 		verified_instantaneous_above_threshold_buf2 <= verified_instantaneous_above_threshold_buf;
 		verified_instantaneous_above_threshold_buf <= verified_instantaneous_above_threshold;
 		--////////////////////////////////////////////////////////////////////////////
+		--//veto
+		internal_extended_power_veto <= 	internal_extended_perbeam_power_veto(0) or internal_extended_perbeam_power_veto(1) or
+													internal_extended_perbeam_power_veto(2) or internal_extended_perbeam_power_veto(3) or
+													internal_extended_perbeam_power_veto(4) or internal_extended_perbeam_power_veto(5) or
+													internal_extended_perbeam_power_veto(6) or internal_extended_perbeam_power_veto(7) or
+													internal_extended_perbeam_power_veto(8) or internal_extended_perbeam_power_veto(9) or
+													internal_extended_perbeam_power_veto(10) or internal_extended_perbeam_power_veto(11) or
+													internal_extended_perbeam_power_veto(12) or internal_extended_perbeam_power_veto(13) or
+													internal_extended_perbeam_power_veto(14) or internal_extended_perbeam_power_veto(15) or
+													internal_extended_perbeam_power_veto(16) or internal_extended_perbeam_power_veto(17) or
+													internal_extended_perbeam_power_veto(18) or internal_extended_perbeam_power_veto(19) or
+													internal_extended_perbeam_power_veto(20) or internal_extended_perbeam_power_veto(21) or
+													internal_extended_perbeam_power_veto(22) or internal_extended_perbeam_power_veto(23);
+		--//end veto assignment																								
+		--//----------------------------------------
 		case trig_verification_state is		
 			
 			when idle_st=>
 				internal_global_trigger_holdoff <= '0';
 				trigger_holdoff_counter <= (others=>'0');
-				--verification_counter <= (others=>'0');
 				verified_instantaneous_above_threshold <= (others=>'0');
-				--verification_current_max_beam <= (others=>'0');
 				verification_beam <= 0;
 
-				if verfication_trig_flag = '1' then
+				if internal_extended_power_veto = '1' then
+					trig_verification_state <= idle_st;
+				elsif verfication_trig_flag = '1' then
 					trig_verification_state <= trig_start_st;
 				else
 					trig_verification_state <= idle_st;
@@ -304,31 +331,75 @@ begin
 			when trig_start_st =>
 				internal_global_trigger_holdoff <= '1';
 				trigger_holdoff_counter <= (others=>'0');
-				--verification_counter <= (others=>'0');
-				--verification_current_max_beam <= (others=>'0');
 				verification_beam <= 0;
 				verified_instantaneous_above_threshold <= (others=>'0');
-				trig_verification_state <= trig_verify_1_st;
+				if internal_extended_power_veto = '1' then
+					trig_verification_state <= idle_st;
+				else
+					trig_verification_state <= trig_wait_1_st; --trig_verify_1_st;
+				end if;
+				
+			--//wait one clk cycle (for veto)
+			when trig_wait_1_st => 
+				internal_global_trigger_holdoff <= '1';
+				trigger_holdoff_counter <= (others=>'0');
+				verification_beam <= 0;
+				verified_instantaneous_above_threshold <= (others=>'0');
+				if internal_extended_power_veto = '1' then
+					trig_verification_state <= idle_st;
+				else
+					trig_verification_state <= trig_wait_2_st;
+				end if;
+				
+			--//wait another clk cycle  (for veto)
+			when trig_wait_2_st => 
+				internal_global_trigger_holdoff <= '1';
+				trigger_holdoff_counter <= (others=>'0');
+				verification_beam <= 0;
+				verified_instantaneous_above_threshold <= (others=>'0');
+				if internal_extended_power_veto = '1' then
+					trig_verification_state <= idle_st;
+				else
+					trig_verification_state <= trig_wait_2_st;
+				end if;
 			
+			--//wait another clk cycle  (for veto)
+			when trig_wait_3_st => 
+				internal_global_trigger_holdoff <= '1';
+				trigger_holdoff_counter <= (others=>'0');
+				verification_beam <= 0;
+				verified_instantaneous_above_threshold <= (others=>'0');
+				if internal_extended_power_veto = '1' then
+					trig_verification_state <= idle_st;
+				else
+					trig_verification_state <= trig_verify_1_st;
+				end if;
+				
 			--//re-add verification for BEACON on 9.27.2018, assign trigger to beam with max power
 			when trig_verify_1_st =>
 				internal_global_trigger_holdoff <= '1';
 				trigger_holdoff_counter <= (others=>'0');
 
 				verified_instantaneous_above_threshold <= (others=>'0');
+				verification_beam <= vector_max(last_trig_pow_o); --//get maximum power beam
 				
-				verification_beam <= vector_max(last_trig_pow_o);
+				if internal_extended_power_veto = '1' then
+					trig_verification_state <= idle_st;
+				else
+					trig_verification_state <= trig_verify_2_st;
+				end if;
 				
-				trig_verification_state <= trig_verify_2_st;
-		
 			--//
 			when trig_verify_2_st =>
 				internal_global_trigger_holdoff <= '1';
 				trigger_holdoff_counter <= (others=>'0');
-				--verification_counter <= (others=>'0');
 
-				if last_trig_pow_o(verification_beam) >= thresholds(verification_beam) then
-					verified_instantaneous_above_threshold(verification_beam) <= '1';
+				--//last chance for veto
+				if internal_extended_power_veto = '1' then
+					verified_instantaneous_above_threshold <= (others=>'0');
+					trig_verification_state <= idle_st;
+				elsif last_trig_pow_o(verification_beam) >= thresholds(verification_beam) then
+					verified_instantaneous_above_threshold(verification_beam) <= '1'; --//trigger goes high
 					trig_verification_state <= trig_high_st;
 				else
 					verified_instantaneous_above_threshold <= (others=>'0');
@@ -341,15 +412,13 @@ begin
 				--verified_instantaneous_above_threshold <= verified_instantaneous_above_threshold; --//trigger still high
 				internal_global_trigger_holdoff <= '1';
 				trigger_holdoff_counter <= (others=>'0');
-				--verification_counter <= (others=>'0');
 
 				trig_verification_state <= trig_hold_st;
 			
 			--//
 			when trig_hold_st=>
-				verified_instantaneous_above_threshold <= (others=>'0');
+				verified_instantaneous_above_threshold <= (others=>'0'); --//trigger goes back low
 				internal_global_trigger_holdoff <= '1';
-				--verification_counter <= (others=>'0');
 				
 				if trigger_holdoff_counter >= internal_trig_holdoff_count then
 					trigger_holdoff_counter <= (others=>'0');
@@ -367,8 +436,6 @@ begin
 				verified_instantaneous_above_threshold <= (others=>'0');
 				internal_global_trigger_holdoff <= '0';
 				verification_beam <= 0;
-				--verification_counter <= (others=>'0');
-				--verification_current_max_beam <= (others=>'0');
 				trig_verification_state <= idle_st;
 		end case;
 	end if;
@@ -402,6 +469,9 @@ begin
 
 			buffered_powersum(i) <= (others=>'0');
 			
+			--//veto
+			internal_extended_perbeam_power_veto(i) <= '0';
+			
 			trigger_state_machine_state(i) 	<= idle_st;
 		
 		elsif rising_edge(clk_data_i) and internal_trig_en_reg(2) = '0' then
@@ -426,19 +496,40 @@ begin
 			
 			buffered_powersum(i) <= (others=>'0');
 			
+			--//veto
+			internal_extended_perbeam_power_veto(i) <= '0';
+			
 			trigger_state_machine_state(i) 	<= idle_st;
 		
 		--//there are 16 samples every clock cycle. We want to calculate the power in 16 sample units every 8 samples.
 		--//So that's two power calculations every clk_data_i cycle
 		elsif rising_edge(clk_data_i) then
+			--//----------------------
+			--//extended veto condition if beam power exceeded for 6 clock cycldes (~192 ns), then VETO
+			if (instant_power_0_buf(i) > thresholds(i) and
+				instant_power_0_buf2(i) > thresholds(i) and
+				instant_power_0_buf4(i) > thresholds(i)) or
+				(instant_power_1_buf(i) > thresholds(i) and
+				instant_power_1_buf2(i) > thresholds(i) and
+				instant_power_1_buf4(i) > thresholds(i)) then
+				
+				internal_extended_perbeam_power_veto(i) <= '1';
+			
+			else
+				
+				internal_extended_perbeam_power_veto(i) <= '0';
+				
+			end if;
+			--//end veto;
+			--//----------------------
 			instant_power_0_buf4(i) <= instant_power_0_buf3(i);
 			instant_power_1_buf4(i) <= instant_power_1_buf3(i);
 			instant_power_0_buf3(i) <= instant_power_0_buf2(i);
 			instant_power_1_buf3(i) <= instant_power_1_buf2(i);
 			instant_power_0_buf2(i) <= instant_power_0_buf(i);
 			instant_power_1_buf2(i) <= instant_power_1_buf(i);
-			instant_power_0_buf(i) <= instantaneous_avg_power_0(i);
-			instant_power_1_buf(i) <= instantaneous_avg_power_1(i);
+			instant_power_0_buf(i)  <= instantaneous_avg_power_0(i);
+			instant_power_1_buf(i)  <= instantaneous_avg_power_1(i);
 			--//calculate first 16-sample power
 			--//note that buffered_powersum already contains 2 samples, so we need to sum over 8 of these
 			instantaneous_avg_power_0(i) <= 
@@ -611,6 +702,6 @@ xTRIGSYNC : flag_sync
 		in_clkA		=> internal_trig_clk_data,
 		busy_clkA	=> open,
 		out_clkB		=> trig_clk_iface_o); --//trig_o is high for one clk_iface_i cycle (use for scalers and to send off-board)
-
+--//////////////////////
 --//////////////////////
 end rtl;

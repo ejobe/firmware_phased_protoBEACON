@@ -81,8 +81,13 @@ signal internal_vpp_summed_wfm : internal_vpp_type;
 signal internal_cw_veto_reg: sat_veto_reg_type;
 
 constant clock_cycles_cw : integer := 2;
-constant sample_delay : integer := 50; --//number of samples to delay added signal
---constant delay_sum_ratio : integer := 50;  --//cut value. make this programmable eventually, duh
+constant sample_delay : integer := 35; --//number of samples to delay added signal
+-------------------------------------------------------------------------------
+--//side-swipe veto 
+signal internal_sideswipe_veto_reg: sat_veto_reg_type;
+signal internal_sideswipe_veto: std_logic_vector(3 downto 0); --//per-trigger-channel veto based on low band cw
+
+constant sideswipe_cut : integer := 16; --//if 
 -------------------------------------------------------------------------------
 --//signals for generating veto pulse
 type veto_pulse_state_type is (idle_st, pulse_st);
@@ -310,6 +315,10 @@ begin
 			internal_vpp_wfm(ch)						<= 0;
 			internal_vpp_summed_wfm(ch)			<= 0;
 			
+			--//add 'sideswipe' veto here too:
+			internal_sideswipe_veto_reg(ch)		<= (others=>'0');
+			internal_sideswipe_veto(ch)			<= '0';
+			
 		elsif rising_edge(clk_i) and internal_cw_veto_en = '0'  then
 
 			internal_cw_veto(ch) 					<= '0';
@@ -319,9 +328,38 @@ begin
 			internal_vpp_wfm(ch)						<= 0;
 			internal_vpp_summed_wfm(ch)			<= 0;
 
+			--//add 'sideswipe' veto here too:
+			internal_sideswipe_veto_reg(ch)		<= (others=>'0');
+			internal_sideswipe_veto(ch)			<= '0';
+			
 		elsif rising_edge(clk_i) and internal_cw_veto_en = '1'  then
-
-			--//require 2 adjacent flagged time bins to veto:
+			----------------------------------------------------------------------------------------------		
+			--//add 'sideswipe' veto here too:
+			
+			internal_sideswipe_veto(ch) <= internal_sideswipe_veto_reg(ch)(clock_cycles_cw) and internal_sideswipe_veto_reg(ch)(clock_cycles_cw+1);	
+			
+			case ch is
+				when 0 =>
+					internal_sideswipe_veto_reg(ch) <= internal_sideswipe_veto_reg(ch)(5 downto 0) & 
+																		get_vpp_ratio(internal_vpp_wfm(3), internal_vpp_wfm(0), 
+																		sideswipe_cut);
+				when 1 =>
+					internal_sideswipe_veto_reg(ch) <= internal_sideswipe_veto_reg(ch)(5 downto 0) & 
+																		get_vpp_ratio(internal_vpp_wfm(0), internal_vpp_wfm(3), 
+																		sideswipe_cut);
+				when 2 =>
+					internal_sideswipe_veto_reg(ch) <= internal_sideswipe_veto_reg(ch)(5 downto 0) & 
+																		get_vpp_ratio(internal_vpp_wfm(0), internal_vpp_wfm(2), 
+																		sideswipe_cut);
+				when 3 =>
+					internal_sideswipe_veto_reg(ch) <= internal_sideswipe_veto_reg(ch)(5 downto 0) & 
+																		get_vpp_ratio(internal_vpp_wfm(2), internal_vpp_wfm(0), 
+																		sideswipe_cut);
+			end case;
+			----------------------------------------------------------------------------------------------
+			
+			----------------------------------------------------------------------------------------------
+			--//require 2 adjacent flagged time bins to low-band veto:
 			--internal_cw_veto(ch) <= internal_cw_veto_reg(ch)(clock_cycles_cw+1) and internal_sat_veto_reg(ch)(clock_cycles_cw);
 			--//require a single clock cycle:
 			internal_cw_veto(ch) <= internal_sat_veto_reg(ch)(clock_cycles_cw);	
@@ -379,6 +417,12 @@ begin
 				--//cw veto, for now this is simply an OR of all trigger chans:
 				elsif internal_cw_veto(0) = '1' or internal_cw_veto(1) = '1' or 
 						internal_cw_veto(2) = '1' or internal_cw_veto(3) = '1' then
+									
+					veto_pulse_state <= pulse_st;
+				
+				--//sideswipe veto, for now this is simply an OR of all tests:
+				elsif internal_sideswipe_veto(0) = '1' or internal_sideswipe_veto(1) = '1' or 
+						internal_sideswipe_veto(2) = '1' or internal_sideswipe_veto(3) = '1' then
 									
 					veto_pulse_state <= pulse_st;
 
