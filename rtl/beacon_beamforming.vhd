@@ -108,15 +108,15 @@ signal internal_pol_select 			: std_logic := '0';
 --//vert delay steps = 4
 --//total beams = 20
 
-type beam_delays_horz_type is array (4 downto 0) of integer range -8 to 8;
-constant beam_delays_horz : beam_delays_horz_type := (-6, -3, 0, 3, 6); 
+type beam_delays_horz_type is array (4 downto 0) of integer range -10 to 10;
+constant beam_delays_horz : beam_delays_horz_type := (-4, -2, 0, 2, 4); 
 
-type beam_delays_vert_type is array (3 downto 0) of integer range -8 to 8;
-constant beam_delays_vert : beam_delays_vert_type := (-6, -3, 0, 3);
+type beam_delays_vert_type is array (3 downto 0) of integer range -10 to 10;
+constant beam_delays_vert : beam_delays_vert_type := (-3, -1, 1, 3);
 
 --//beam codes - one per antenna, depends on array geometry
 type beam_codes_type is array (3 downto 0) of integer range -8 to 8;
-constant beam_codes_horz : beam_codes_type := (-2,-1,0,1); --//equal horizontal spacing
+constant beam_codes_horz : beam_codes_type := (-2,-1,1,2); --//kinda equal horizontal spacing
 constant beam_codes_vert : beam_codes_type := (-1,0,0,-1); --//two rows vertically
 
 --//coh. sums 

@@ -193,7 +193,7 @@ begin
 		registers_io(48) <= x"0000FF";   --// channel masking [48]
 		registers_io(79) <= x"000000";   --// polarization select for beamforming [79]
 		registers_io(80) <= x"FFFFFF";   --// beam masks for trigger [80]
-		registers_io(81) <= x"0000FF";   --// trig holdoff - lower 16 bits [81]
+		registers_io(81) <= x"00000F";   --// trig holdoff - lower 16 bits [81]
 		registers_io(82) <= x"000300";	--// phased trigger/beam enables [82]
 		registers_io(75) <= x"00FF00";   --// external trigger input configuration [75]
 		registers_io(83) <= x"000C03";   --// external trigger output configuration [83]
@@ -211,8 +211,8 @@ begin
 		registers_io(93) <= x"000105"; --// dynamic beam masking register
 		registers_io(94) <= x"000040"; --// dynamic beam masking register - lower 16 bits mask holdoff
 		--//trigger vetoing
-		registers_io(95) <= x"003003"; --// trigger veto bits. Second byte is the veto pulse width. Lowest byte is veto enables
-		registers_io(96) <= x"00327E"; --// veto cut values
+		registers_io(95) <= x"003000"; --// trigger veto bits. Second byte is the veto pulse width. Lowest byte is veto enables
+		registers_io(96) <= x"14327E"; --// veto cut values
 
 		--//trigger thresholds:
 		--registers_io(base_adrs_trig_thresh+0) <= x"0FFFFF";   --//[86] trigger threshold value 

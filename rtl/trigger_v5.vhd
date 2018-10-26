@@ -360,7 +360,7 @@ begin
 				if internal_extended_power_veto = '1' then
 					trig_verification_state <= idle_st;
 				else
-					trig_verification_state <= trig_wait_2_st;
+					trig_verification_state <= trig_wait_3_st;
 				end if;
 			
 			--//wait another clk cycle  (for veto)

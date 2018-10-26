@@ -51,6 +51,7 @@ constant slice_base : integer := 4*pdat_size;
 --//veto enables
 signal internal_sat_veto_en : std_logic; 
 signal internal_cw_veto_en  : std_logic;
+signal internal_sideswipe_veto_en  : std_logic;
 --//generated veto signal
 signal veto: std_logic; --//trigger veto based on extended pulse saturation
 -------------------------------------------------------------------------------
@@ -87,8 +88,10 @@ constant sample_delay : integer := 35; --//number of samples to delay added sign
 signal internal_sideswipe_veto_reg: sat_veto_reg_type;
 signal internal_sideswipe_veto: std_logic_vector(3 downto 0); --//per-trigger-channel veto based on low band cw
 
-constant sideswipe_cut : integer := 16; --//if 
--------------------------------------------------------------------------------
+--constant sideswipe_cut : integer := 15; --//if 
+signal sideswipe_cut : std_logic_vector(7 downto 0); --//if 
+
+-------------------------------------------------- -----------------------------
 --//signals for generating veto pulse
 type veto_pulse_state_type is (idle_st, pulse_st);
 signal veto_pulse_state : veto_pulse_state_type;
@@ -186,13 +189,20 @@ port map(
 	clkB				=> clk_i,
 	SignalIn_clkA	=> reg_i(95)(0), 
 	SignalOut_clkB	=> internal_sat_veto_en);
---//not yet implemented:
+--//
 xCW_VETO_SELECT : signal_sync
 port map(
 	clkA				=> clk_iface_i,
 	clkB				=> clk_i,
 	SignalIn_clkA	=> reg_i(95)(1), 
 	SignalOut_clkB	=> internal_cw_veto_en);
+--//
+xSIDESWIPE_VETO_SELECT : signal_sync
+port map(
+	clkA				=> clk_iface_i,
+	clkB				=> clk_i,
+	SignalIn_clkA	=> reg_i(95)(2), 
+	SignalOut_clkB	=> internal_sideswipe_veto_en);
 --//
 VetoWidth	:	 for i in 0 to 7 generate	
 	xVETO_WIDTH : signal_sync
@@ -218,6 +228,14 @@ CWCut	:	 for i in 0 to 7 generate
 		clkB				=> clk_i,
 		SignalIn_clkA	=> reg_i(96)(i+8), 
 		SignalOut_clkB	=> cw_veto_cut_value(i));
+end generate;
+SideSwipeCut	:	 for i in 0 to 7 generate	
+	xSIDESW_CUT : signal_sync
+	port map(
+		clkA				=> clk_iface_i,
+		clkB				=> clk_i,
+		SignalIn_clkA	=> reg_i(96)(i+16), 
+		SignalOut_clkB	=> sideswipe_cut(i));
 end generate;
 --------------------------------------------
 --------------//
@@ -318,73 +336,79 @@ begin
 			--//add 'sideswipe' veto here too:
 			internal_sideswipe_veto_reg(ch)		<= (others=>'0');
 			internal_sideswipe_veto(ch)			<= '0';
-			
-		elsif rising_edge(clk_i) and internal_cw_veto_en = '0'  then
 
-			internal_cw_veto(ch) 					<= '0';
-			internal_delay_and_sum_waveform(ch) <= (others=>'0');
-			internal_normal_waveform(ch)			<= (others=>'0');
-			internal_cw_veto_reg(ch)				<= (others=>'0');
-			internal_vpp_wfm(ch)						<= 0;
-			internal_vpp_summed_wfm(ch)			<= 0;
-
-			--//add 'sideswipe' veto here too:
-			internal_sideswipe_veto_reg(ch)		<= (others=>'0');
-			internal_sideswipe_veto(ch)			<= '0';
 			
-		elsif rising_edge(clk_i) and internal_cw_veto_en = '1'  then
+		elsif rising_edge(clk_i) then
+		
+			internal_vpp_wfm(ch)						<= get_vpp(internal_normal_waveform(ch));
+
 			----------------------------------------------------------------------------------------------		
 			--//add 'sideswipe' veto here too:
 			
-			internal_sideswipe_veto(ch) <= internal_sideswipe_veto_reg(ch)(clock_cycles_cw) and internal_sideswipe_veto_reg(ch)(clock_cycles_cw+1);	
+			if internal_sideswipe_veto_en = '1' then
+				--//
+				internal_sideswipe_veto(ch) <= internal_sideswipe_veto_reg(ch)(1) and internal_sideswipe_veto_reg(ch)(2);	
 			
-			case ch is
-				when 0 =>
-					internal_sideswipe_veto_reg(ch) <= internal_sideswipe_veto_reg(ch)(5 downto 0) & 
-																		get_vpp_ratio(internal_vpp_wfm(3), internal_vpp_wfm(0), 
-																		sideswipe_cut);
-				when 1 =>
-					internal_sideswipe_veto_reg(ch) <= internal_sideswipe_veto_reg(ch)(5 downto 0) & 
-																		get_vpp_ratio(internal_vpp_wfm(0), internal_vpp_wfm(3), 
-																		sideswipe_cut);
-				when 2 =>
-					internal_sideswipe_veto_reg(ch) <= internal_sideswipe_veto_reg(ch)(5 downto 0) & 
-																		get_vpp_ratio(internal_vpp_wfm(0), internal_vpp_wfm(2), 
-																		sideswipe_cut);
-				when 3 =>
-					internal_sideswipe_veto_reg(ch) <= internal_sideswipe_veto_reg(ch)(5 downto 0) & 
-																		get_vpp_ratio(internal_vpp_wfm(2), internal_vpp_wfm(0), 
-																		sideswipe_cut);
-			end case;
-			----------------------------------------------------------------------------------------------
+				case ch is
+					when 0 =>
+						internal_sideswipe_veto_reg(ch) <= internal_sideswipe_veto_reg(ch)(5 downto 0) & 
+																			get_vpp_ratio(internal_vpp_wfm(3), internal_vpp_wfm(0), 
+																			to_integer(unsigned(sideswipe_cut)));
+					when 1 =>
+						internal_sideswipe_veto_reg(ch) <= internal_sideswipe_veto_reg(ch)(5 downto 0) & 
+																			get_vpp_ratio(internal_vpp_wfm(0), internal_vpp_wfm(3), 
+																			to_integer(unsigned(sideswipe_cut)));
+					when 2 =>
+						internal_sideswipe_veto_reg(ch) <= internal_sideswipe_veto_reg(ch)(5 downto 0) & 
+																			get_vpp_ratio(internal_vpp_wfm(0), internal_vpp_wfm(2), 
+																			to_integer(unsigned(sideswipe_cut)));
+					when 3 =>
+						internal_sideswipe_veto_reg(ch) <= internal_sideswipe_veto_reg(ch)(5 downto 0) & 
+																			get_vpp_ratio(internal_vpp_wfm(2), internal_vpp_wfm(0), 
+																			to_integer(unsigned(sideswipe_cut)));
+				end case;
 			
+			else
+				internal_sideswipe_veto_reg(ch)		<= (others=>'0');
+				internal_sideswipe_veto(ch)			<= '0';
+			end if;
 			----------------------------------------------------------------------------------------------
-			--//require 2 adjacent flagged time bins to low-band veto:
-			--internal_cw_veto(ch) <= internal_cw_veto_reg(ch)(clock_cycles_cw+1) and internal_sat_veto_reg(ch)(clock_cycles_cw);
-			--//require a single clock cycle:
-			internal_cw_veto(ch) <= internal_sat_veto_reg(ch)(clock_cycles_cw);	
+			----------------------------------------------------------------------------------------------
+			if internal_cw_veto_en = '1' then 
+			----------------------------------------------------------------------------------------------
+				--//require 2 adjacent flagged time bins to low-band veto:
+				--internal_cw_veto(ch) <= internal_cw_veto_reg(ch)(clock_cycles_cw+1) and internal_sat_veto_reg(ch)(clock_cycles_cw);
+				--//require a single clock cycle:
+				internal_cw_veto(ch) <= internal_cw_veto_reg(ch)(clock_cycles_cw);	
 
-			--//use get_vpp_ratio function to add veto to register:
-			internal_cw_veto_reg(ch) <= internal_cw_veto_reg(ch)(5 downto 0) & get_vpp_ratio(internal_vpp_wfm(ch), internal_vpp_summed_wfm(ch), 
+				--//use get_vpp_ratio function to add veto to register:
+				internal_cw_veto_reg(ch) <= internal_cw_veto_reg(ch)(5 downto 0) & get_vpp_ratio(internal_vpp_wfm(ch), internal_vpp_summed_wfm(ch), 
 																												to_integer(unsigned(cw_veto_cut_value)));
+				--//get vpp values:
+				internal_vpp_summed_wfm(ch)			<= get_vpp(internal_delay_and_sum_waveform(ch));
 		
-			--//get vpp values:
-			internal_vpp_wfm(ch)						<= get_vpp(internal_normal_waveform(ch));
-			internal_vpp_summed_wfm(ch)			<= get_vpp(internal_delay_and_sum_waveform(ch));
-		
-			for j in 0 to 4*define_serdes_factor-1 loop
-				internal_normal_waveform(ch)((j+1)*define_word_size-1 downto j*define_word_size) <= 
-					std_logic_vector(resize(unsigned(dat(ch)(j * define_word_size+slice_base + 7 - 1 downto j * define_word_size+slice_base )),
-					define_word_size));	
+				for j in 0 to 4*define_serdes_factor-1 loop
+					internal_normal_waveform(ch)((j+1)*define_word_size-1 downto j*define_word_size) <= 
+						std_logic_vector(resize(unsigned(dat(ch)(j * define_word_size+slice_base + 7 - 1 downto j * define_word_size+slice_base )),
+						define_word_size));	
 					
-				--//add delayed copy of trigger channel to itself
-				internal_delay_and_sum_waveform(ch)((j+1)*define_word_size-1 downto j*define_word_size) <=
-					std_logic_vector(resize(unsigned(dat(ch)(j * define_word_size+slice_base + 7 - 1 downto j * define_word_size+slice_base )),
-					define_word_size)) +
-					std_logic_vector(resize(unsigned(dat(ch)((j - sample_delay) * define_word_size+slice_base + 7 - 1 downto (j - sample_delay) * define_word_size+slice_base )),
-					define_word_size));
+					--//add delayed copy of trigger channel to itself
+					internal_delay_and_sum_waveform(ch)((j+1)*define_word_size-1 downto j*define_word_size) <=
+						std_logic_vector(resize(unsigned(dat(ch)(j * define_word_size+slice_base + 7 - 1 downto j * define_word_size+slice_base )),
+						define_word_size)) +
+						std_logic_vector(resize(unsigned(dat(ch)((j - sample_delay) * define_word_size+slice_base + 7 - 1 downto (j - sample_delay) * define_word_size+slice_base )),
+						define_word_size));
 
-			end loop;
+				end loop;
+			
+			else
+				internal_cw_veto(ch) 					<= '0';           --//the per-channel veto
+				internal_delay_and_sum_waveform(ch) <= (others=>'0');
+				internal_normal_waveform(ch)			<= (others=>'0');
+				internal_cw_veto_reg(ch)				<= (others=>'0');
+				--internal_vpp_wfm(ch)						<= 0;
+				internal_vpp_summed_wfm(ch)			<= 0;
+			end if;
 				
 		end if;
 	end loop;

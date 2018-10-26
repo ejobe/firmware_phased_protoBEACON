@@ -41,6 +41,8 @@ constant define_num_wfm_buffers			:	integer := 4; --// number of independent buf
 constant define_address_size				:	integer := 8; --//8 bits for now
 constant define_register_size				:	integer := 32;
 
+--//multiband FIR
+
 type adc_output_data_type is array (3 downto 0) of std_logic_vector(define_adc_data_width-1 downto 0);
 type full_data_type	is array	(7 downto 0) of std_logic_vector(define_ram_width-1 downto 0);	
 type halfpol_data_type	is array	(3 downto 0) of std_logic_vector(define_ram_width-1 downto 0);	
@@ -64,8 +66,8 @@ type register_array_type is array (255 downto 0)
 --////////////////////////////////////////////////
 --///////////////////////////////////////////////////////////////////////////////////////////////////
 --//FIRMWARE INFORMATION\\--
-constant firmware_version 	: std_logic_vector(define_register_size-define_address_size-1 downto 0) := x"000013";
-constant firmware_date 		: std_logic_vector(define_register_size-define_address_size-1 downto 0) := x"7e2" & x"9" & x"1C";
+constant firmware_version 	: std_logic_vector(define_register_size-define_address_size-1 downto 0) := x"000014";
+constant firmware_date 		: std_logic_vector(define_register_size-define_address_size-1 downto 0) := x"7e2" & x"A" & x"1A";
 --///////////////////////////////////////////////////////////////////////////////////////////////////
 --///////////////////////////////////////////////
 --//
