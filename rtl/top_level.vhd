@@ -208,6 +208,7 @@ architecture rtl of top_level is
 	signal powsum_ev2samples	: sum_power_type;
 	--//trigger signals
 	signal trigger_veto				: std_logic;
+	signal trigger_veto_for_monitoring	: std_logic;
 	signal extnd_power_veto			: std_logic;
 	signal the_phased_trigger		: std_logic;
 	signal the_phased_trigger_off_board : std_logic;
@@ -353,6 +354,7 @@ begin
 		clk_iface_i	=> clock_31MHz_b,
 		reg_i			=> registers,
 		data_i		=>	wfm_data_filt, --wfm_data,
+		veto_for_mon_o => trigger_veto_for_monitoring,
 		veto_o		=> trigger_veto,
 		beams_o		=> beam_data,
 		sum_pow_o	=> powsum_ev2samples);
@@ -526,7 +528,7 @@ begin
 		status_reg_o			=> status_reg_data_manager,
 		status_reg_latched_o => status_reg_latched_data_manager,
 		dynamic_beammask_i	=> dynamic_beam_mask_clk_iface,
-		veto_i					=> trigger_veto or extnd_power_veto,
+		veto_i					=> trigger_veto_for_monitoring or extnd_power_veto,
 		wfm_data_i				=> wfm_data,
 		wfm_data_filt_i		=> wfm_data_filt,
 		running_scalers_i		=> running_scalers,
@@ -584,7 +586,7 @@ begin
 		remote_upgrade_status_i			=> remote_upgrade_status,
 		pps_timestamp_to_read_i			=> pps_timestamp_to_read,
 		dynamic_mask_i						=> dynamic_beam_mask_clk_iface,
-		veto_status_i						=> trigger_veto & extnd_power_veto,
+		veto_status_i						=> trigger_veto_for_monitoring & extnd_power_veto,
 		--//////////////////////////
 		write_reg_i		=> mcu_data_pkt_32bit,
 		write_rdy_i		=> mcu_rx_rdy,

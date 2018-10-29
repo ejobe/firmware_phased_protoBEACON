@@ -60,9 +60,10 @@ entity beacon_beamforming is
 		reg_i			: 	in		register_array_type;
 		data_i		:	in	   full_data_type;
 		
-		veto_o		:	out	std_logic;
-		beams_o		:	out	array_of_beams_type;   
-		sum_pow_o	:	out	sum_power_type);
+		veto_for_mon_o : 	out	std_logic;
+		veto_o			:	out	std_logic;
+		beams_o			:	out	array_of_beams_type;   
+		sum_pow_o		:	out	sum_power_type);
 		
 end beacon_beamforming;
 
@@ -372,6 +373,7 @@ xTRIGGER_VETO : entity work.trigger_veto
 		clk_iface_i	=> clk_iface_i,
 		reg_i			=> reg_i,
 		data_i		=> pol_data,
+		veto_mon_o	=> veto_for_mon_o,
 		veto_o		=> veto_o);
 		
 end rtl;

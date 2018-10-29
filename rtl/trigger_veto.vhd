@@ -29,6 +29,7 @@ entity trigger_veto is
 		reg_i			: 	in		register_array_type;
 		data_i		:	in	   halfpol_data_type;
 
+		veto_mon_o	:	out	std_logic; --//veto signal on iface clock for readout reg
 		veto_o		:	out	std_logic);
 		
 end trigger_veto;
@@ -52,6 +53,8 @@ constant slice_base : integer := 4*pdat_size;
 signal internal_sat_veto_en : std_logic; 
 signal internal_cw_veto_en  : std_logic;
 signal internal_sideswipe_veto_en  : std_logic;
+signal internal_extended_above_threshold_veto_en : std_logic;
+
 --//generated veto signal
 signal veto: std_logic; --//trigger veto based on extended pulse saturation
 -------------------------------------------------------------------------------
@@ -89,9 +92,13 @@ signal internal_sideswipe_veto_reg: sat_veto_reg_type;
 signal internal_sideswipe_veto: std_logic_vector(3 downto 0); --//per-trigger-channel veto based on low band cw
 
 --constant sideswipe_cut : integer := 15; --//if 
-signal sideswipe_cut : std_logic_vector(7 downto 0); --//if 
-
--------------------------------------------------- -----------------------------
+signal sideswipe_cut : std_logic_vector(7 downto 0); --
+-------------------------------------------------------------------------------
+--//extended signal above threshold veto
+signal internal_extended_above_threshold_veto_reg: sat_veto_reg_type;
+signal internal_extended_above_threshold_veto: std_logic_vector(3 downto 0); --//per-trigger-channel veto based on above_threshold
+signal above_threshold_cut : std_logic_vector(7 downto 0); --
+-------------------------------------------------------------------------------
 --//signals for generating veto pulse
 type veto_pulse_state_type is (idle_st, pulse_st);
 signal veto_pulse_state : veto_pulse_state_type;
@@ -204,6 +211,13 @@ port map(
 	SignalIn_clkA	=> reg_i(95)(2), 
 	SignalOut_clkB	=> internal_sideswipe_veto_en);
 --//
+xEXTENDED_ABOVE_THRESH_VETO_SELECT : signal_sync
+port map(
+	clkA				=> clk_iface_i,
+	clkB				=> clk_i,
+	SignalIn_clkA	=> reg_i(95)(3), 
+	SignalOut_clkB	=> internal_extended_above_threshold_veto_en);
+--//
 VetoWidth	:	 for i in 0 to 7 generate	
 	xVETO_WIDTH : signal_sync
 	port map(
@@ -237,6 +251,21 @@ SideSwipeCut	:	 for i in 0 to 7 generate
 		SignalIn_clkA	=> reg_i(96)(i+16), 
 		SignalOut_clkB	=> sideswipe_cut(i));
 end generate;
+ExtAbvThrshCut	:	 for i in 0 to 7 generate	
+	xEXTENDED_ABOVE_THRESH_CUT : signal_sync
+	port map(
+		clkA				=> clk_iface_i,
+		clkB				=> clk_i,
+		SignalIn_clkA	=> reg_i(97)(i), 
+		SignalOut_clkB	=> above_threshold_cut(i));
+end generate;
+--//
+xVETO_FOR_MON : signal_sync
+port map(
+	clkA				=> clk_i,
+	clkB				=> clk_iface_i,
+	SignalIn_clkA	=> veto, 
+	SignalOut_clkB	=> veto_mon_o);
 --------------------------------------------
 --------------//
 proc_buffer_data : process(rst_i, clk_i, data_i)
@@ -336,12 +365,33 @@ begin
 			--//add 'sideswipe' veto here too:
 			internal_sideswipe_veto_reg(ch)		<= (others=>'0');
 			internal_sideswipe_veto(ch)			<= '0';
-
+				
+			internal_extended_above_threshold_veto_reg(ch) 	<= (others=>'0');
+			internal_extended_above_threshold_veto(ch) 		<= '0';
 			
 		elsif rising_edge(clk_i) then
 		
 			internal_vpp_wfm(ch)						<= get_vpp(internal_normal_waveform(ch));
 
+			----------------------------------------------------------------------------------------------		
+			--//add 'extended above threshold' veto here too:
+			if internal_extended_above_threshold_veto_en = '1' then
+				--//
+				--//require 4 clock cycles in a row to be above threshold
+				internal_extended_above_threshold_veto(ch) <= 	internal_extended_above_threshold_veto_reg(ch)(1) and internal_extended_above_threshold_veto_reg(ch)(2) and
+																				internal_extended_above_threshold_veto_reg(ch)(3) and internal_extended_above_threshold_veto_reg(ch)(4);
+				--//
+				if internal_vpp_wfm(ch) >= to_integer(unsigned(above_threshold_cut)) then
+					internal_extended_above_threshold_veto_reg(ch) <= internal_extended_above_threshold_veto_reg(ch)(5 downto 0) & '1';
+				else
+					internal_extended_above_threshold_veto_reg(ch) <= internal_extended_above_threshold_veto_reg(ch)(5 downto 0) & '0';
+				end if;
+			else
+				--//
+				internal_extended_above_threshold_veto_reg(ch) 	<= (others=>'0');
+				internal_extended_above_threshold_veto(ch) 		<= '0';
+			end if;
+			----------------------------------------------------------------------------------------------	
 			----------------------------------------------------------------------------------------------		
 			--//add 'sideswipe' veto here too:
 			
@@ -449,7 +499,13 @@ begin
 						internal_sideswipe_veto(2) = '1' or internal_sideswipe_veto(3) = '1' then
 									
 					veto_pulse_state <= pulse_st;
-
+					
+				--//extended above threshold, for now this is simply an OR of all trigger chans:
+				elsif internal_extended_above_threshold_veto(0) = '1' or internal_extended_above_threshold_veto(1) = '1' or 
+						internal_extended_above_threshold_veto(2) = '1' or internal_extended_above_threshold_veto(3) = '1' then
+									
+					veto_pulse_state <= pulse_st;
+					
 				else
 					
 					veto_pulse_state <= idle_st;
