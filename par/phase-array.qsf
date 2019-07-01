@@ -42,7 +42,7 @@ set_global_assignment -name DEVICE 5AGXFB5H4F35C4
 set_global_assignment -name TOP_LEVEL_ENTITY "phase-array"
 set_global_assignment -name ORIGINAL_QUARTUS_VERSION 15.1.0
 set_global_assignment -name PROJECT_CREATION_TIME_DATE "20:57:36  JANUARY 22, 2016"
-set_global_assignment -name LAST_QUARTUS_VERSION 15.1.0
+set_global_assignment -name LAST_QUARTUS_VERSION "18.1.0 Standard Edition"
 set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
 set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0
 set_global_assignment -name MAX_CORE_JUNCTION_TEMP 85
@@ -1086,6 +1086,8 @@ set_global_assignment -name SEARCH_PATH "c:\\users\\eric\\desktop\\firmware-phas
 set_global_assignment -name SEARCH_PATH "c:\\users\\eric\\desktop\\firmware-phased-array\\rtl\\altera_ip"
 set_global_assignment -name SEARCH_PATH "c:\\users\\eric\\desktop\\firmware-phased-array"
 set_global_assignment -name SEARCH_PATH "c:\\users\\eric\\desktop\\firmware-phased-array\\rtl"
+set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
+set_global_assignment -name VHDL_FILE ../rtl/altera_ip/pll_block_3.vhd -library pll_block_3
 set_global_assignment -name VHDL_FILE ../rtl/altera_ip/EPCQ_read_buffer.vhd
 set_global_assignment -name VERILOG_FILE ../rtl/altera_ip/remote_update/remote_update/synthesis/submodules/remote_update_remote_update_0.v
 set_global_assignment -name VERILOG_FILE ../rtl/altera_ip/remote_update/remote_update/synthesis/submodules/altera_remote_update_core.v
@@ -1166,4 +1168,3 @@ set_global_assignment -name VHDL_FILE ../rtl/filter.vhd
 set_global_assignment -name VHDL_FILE ../rtl/dynamic_masking.vhd
 set_global_assignment -name VHDL_FILE ../rtl/trigger_v5.vhd
 set_global_assignment -name VHDL_FILE ../rtl/trigger_veto.vhd
-set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
