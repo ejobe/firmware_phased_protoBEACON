@@ -1168,3 +1168,4 @@ set_global_assignment -name VHDL_FILE ../rtl/filter.vhd
 set_global_assignment -name VHDL_FILE ../rtl/dynamic_masking.vhd
 set_global_assignment -name VHDL_FILE ../rtl/trigger_v5.vhd
 set_global_assignment -name VHDL_FILE ../rtl/trigger_veto.vhd
+set_global_assignment -name VHDL_FILE ../rtl/sixty_cycle_veto.vhd
