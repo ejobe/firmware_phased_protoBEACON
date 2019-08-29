@@ -217,7 +217,9 @@ architecture rtl of top_level is
 	signal the_phased_trigger_from_master : std_logic := '0';
 	signal external_trigger			: std_logic;
 	signal last_trig_beams			: std_logic_vector(define_num_beams-1 downto 0);
-	signal last_trig_power			: average_power_16samp_type;
+	signal last_trig_power			: average_power_16samp_type;		
+	--//pps signals
+	signal pps : std_logic;
 	signal pps_timestamp_latch		: std_logic_vector(1 downto 0);
 	signal pps_timestamp				: std_logic_vector(47 downto 0);
 	signal pps_timestamp_to_read	: std_logic_vector(47 downto 0);
@@ -228,7 +230,6 @@ architecture rtl of top_level is
 	--//self-generated cal pulse signals
 	signal cal_pulse_rf_switch_ctl : std_logic;
 	signal cal_pulse_the_pulse	: std_logic;
-	signal pps : std_logic;
 	--//signals driven from the data manager module
 	signal data_manager_write_busy : std_logic;
 	signal event_meta_data	: event_metadata_type;
@@ -666,10 +667,10 @@ begin
 	begin
 	case FIRMWARE_DEVICE is
 		when '1' => --//master board
-			SMA_out0 	<= pps;--cal_pulse_the_pulse;  
+			pps 			<= SMA_out0 ;--cal_pulse_the_pulse;  
 			SMA_out1 	<= cal_pulse_rf_switch_ctl;--the_phased_trigger;
 			SMA_in		<= cal_pulse_the_pulse;--sync_from_master_device;
-			uC_dig(9)	<= the_ext_trigger_out;  --
+			uC_dig(9)	<= '0'; --the_ext_trigger_out;  --
 			the_phased_trigger_from_master <= '0';
 			sync_to_slave_device <= '0';
 		when '0' => --//slave board

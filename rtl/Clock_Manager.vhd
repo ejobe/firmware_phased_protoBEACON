@@ -32,7 +32,7 @@ entity Clock_Manager is
 		CLK_10Hz_o		:  out	std_logic;
 		CLK_1kHz_o		:	out	std_logic;
 		CLK_100kHz_o	:	out	std_logic;
-		CLK_120kHz_o	:	inout	std_logic
+		CLK_120kHz_o	:	inout	std_logic;
 		
 		refresh_100Hz_o	:	out	std_logic;  --//refresh pulse derived from CLK_15MHz_o
 		refresh_1Hz_o		:	out	std_logic;  --//refresh pulse derived from CLK_15MHz_o
@@ -191,7 +191,7 @@ begin
 		end if;
 	end process;
 	--//////////////////////////////////////
-	proc_make_refresh_pulse : process(CLK_120kHz_o)
+	proc_make_refresh_pulse_60cycle : process(CLK_120kHz_o)
 	begin
 	if rising_edge(CLK_120kHz_o) then
 

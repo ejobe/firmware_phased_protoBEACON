@@ -41,49 +41,82 @@ end external_trigger_manager;
 architecture rtl of external_trigger_manager is
 
 signal internal_gate_reg 		: std_logic_vector(2 downto 0);
+signal internal_delayed_exttrig  : std_logic;
+signal internal_delayed_exttrig_counter : std_logic_vector(23 downto 0);
 signal internal_exttrig_reg 	: std_logic_vector(2 downto 0);
 signal internal_exttrig_edge 	: std_logic;
-signal internal_gate_generator_output : std_logic;
-signal internal_trig_generator_output : std_logic;
+
+type trig_delay_state_type is (idle_st, delay_st, send_st);
+signal trig_delay_state : trig_delay_state_type;
 
 begin
 --//if PPS plugged on ext trigger input, use to latch timestamp
 pps_gate_o <= internal_gate_reg(2 downto 1);
 --//external trigger to firmware core:
-sys_trig_o <= internal_exttrig_reg(1) and reg_i(75)(0);
+--sys_trig_o <= internal_exttrig_reg(1) and reg_i(75)(0);
+sys_trig_o <= internal_delayed_exttrig and reg_i(75)(0);
+
 --//external trigger off-board assignment:
-proc_trig_out_assign : process(reg_i(83), internal_gate_reg, internal_gate_generator_output)
-begin
-	case reg_i(83)(2) is
-		when '0' =>
-			ext_trig_o <= internal_trig_generator_output;
-		when '1' =>
-			ext_trig_o <= refrsh_pulse_1Hz_i;
-	end case;
-end process;
---//gate generator to firmware core:
-proc_gate_out_assign : process(reg_i(75), internal_gate_reg, internal_gate_generator_output)
-begin
-	case reg_i(75)(1) is
-		when '0' =>
-			sys_gate_o <= internal_gate_reg(2);
-		when '1' =>
-			sys_gate_o <= internal_gate_generator_output;
-	end case;
-end process;
+--proc_trig_out_assign : process(internal_delayed_exttrig_counter, internal_gate_reg, internal_gate_generator_output)
+--begin
+--	case reg_i(83)(2) is
+--		when '0' =>
+--			ext_trig_o <= internal_trig_generator_output;
+--		when '1' =>
+--			ext_trig_o <= refrsh_pulse_1Hz_i;
+--	end case;
+--end process;
+
+--//gate generator to firmware core [for scalers]:
+sys_gate_o <= internal_gate_reg(2);
 
 proc_reg_ext : process(rst_i, clk_i, ext_i, internal_gate_reg, internal_exttrig_reg, internal_exttrig_edge)
 begin	
 	if rst_i = '1' then
 		internal_gate_reg <= (others=>'0');
 		internal_exttrig_reg <= (others=>'0');
+		internal_delayed_exttrig <= '0';
+		trig_delay_state <= idle_st;
+		
 	elsif rising_edge(clk_i) then
 		internal_gate_reg <= internal_gate_reg(1 downto 0) & ext_i;
+		
 		if internal_exttrig_reg(2) = '1' then
 			internal_exttrig_reg <= (others=>'0');
 		else
 			internal_exttrig_reg <= internal_exttrig_reg(1 downto 0) & internal_exttrig_edge;
 		end if;
+		
+		--//ext trigger delay to data_manager block:
+		case trig_delay_state is
+			when idle_st =>
+				internal_delayed_exttrig <= '0';
+				internal_delayed_exttrig_counter <= (others=>'0');
+				
+				if internal_exttrig_reg(1) <= '1' then
+					trig_delay_state <= delay_st;
+				else
+					trig_delay_state <= idle_st;
+				end if;
+					
+			when delay_st =>
+				internal_delayed_exttrig <= '0';
+				internal_delayed_exttrig_counter <= internal_delayed_exttrig_counter + 1;
+				
+				if internal_delayed_exttrig_counter(17 downto 2) >= reg_i(75)(23 downto 8) then
+					trig_delay_state <= send_st;
+				else
+					trig_delay_state <= delay_st;
+				end if;
+					
+			when send_st=>
+				internal_delayed_exttrig <= '1';
+				internal_delayed_exttrig_counter <= (others=>'0');
+				trig_delay_state <= idle_st;
+				
+			when others=>
+				trig_delay_state <= idle_st;
+		end case;		
 	end if;
 end process;
 
@@ -96,43 +129,5 @@ begin
 		internal_exttrig_edge <= '1';
 	end if;
 end process;
-
---//gate generator
-xGATE_GENERATOR : entity work.pulse_stretcher_sync_programmable(rtl)
-generic map(
-	stretch_width => 16)
-port map(
-	rst_i		=> rst_i or (not FIRMWARE_DEVICE),
-	clk_i		=> clk_i,
-	stretch_i => reg_i(75)(23 downto 8),
-	out_pol_i => '1',
-	pulse_i	=> internal_gate_reg(1),
-	pulse_o	=> internal_gate_generator_output);
-	
---//old version used phased trigger on 25Mhz clock:
-----//send trigger out:
---xEXT_TRIG_OUT : entity work.pulse_stretcher_sync_programmable(rtl)
---generic map(
---	stretch_width => 8)
---port map(
---	rst_i		=> rst_i or (not reg_i(83)(0)) or (not FIRMWARE_DEVICE),
---	clk_i		=> clk_i,
---	stretch_i => reg_i(83)(15 downto 8),
---	out_pol_i => reg_i(83)(1),
---	pulse_i	=> sys_trig_i,
---	pulse_o	=> internal_trig_generator_output);
-
---//new version used phased trigger on 93Mhz clock to get it out quicker:
---//send trigger out:
-xEXT_TRIG_OUT : entity work.pulse_stretcher_sync_programmable(rtl)
-generic map(
-	stretch_width => 8)
-port map(
-	rst_i		=> rst_i or (not reg_i(83)(0)) or (not FIRMWARE_DEVICE),
-	clk_i		=> trig_clk_i,
-	stretch_i => reg_i(83)(15 downto 8),
-	out_pol_i => reg_i(83)(1),
-	pulse_i	=> sys_trig_i,
-	pulse_o	=> internal_trig_generator_output);
 
 end rtl;

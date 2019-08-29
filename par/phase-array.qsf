@@ -1086,7 +1086,7 @@ set_global_assignment -name SEARCH_PATH "c:\\users\\eric\\desktop\\firmware-phas
 set_global_assignment -name SEARCH_PATH "c:\\users\\eric\\desktop\\firmware-phased-array\\rtl\\altera_ip"
 set_global_assignment -name SEARCH_PATH "c:\\users\\eric\\desktop\\firmware-phased-array"
 set_global_assignment -name SEARCH_PATH "c:\\users\\eric\\desktop\\firmware-phased-array\\rtl"
-set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
+set_global_assignment -name VERILOG_FILE ../rtl/altera_ip/pll_block_3/pll_block_3_0002.v
 set_global_assignment -name VHDL_FILE ../rtl/altera_ip/pll_block_3.vhd -library pll_block_3
 set_global_assignment -name VHDL_FILE ../rtl/altera_ip/EPCQ_read_buffer.vhd
 set_global_assignment -name VERILOG_FILE ../rtl/altera_ip/remote_update/remote_update/synthesis/submodules/remote_update_remote_update_0.v
@@ -1169,3 +1169,4 @@ set_global_assignment -name VHDL_FILE ../rtl/dynamic_masking.vhd
 set_global_assignment -name VHDL_FILE ../rtl/trigger_v5.vhd
 set_global_assignment -name VHDL_FILE ../rtl/trigger_veto.vhd
 set_global_assignment -name VHDL_FILE ../rtl/sixty_cycle_veto.vhd
+set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
