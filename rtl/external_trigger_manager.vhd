@@ -81,11 +81,11 @@ begin
 	elsif rising_edge(clk_i) then
 		internal_gate_reg <= internal_gate_reg(1 downto 0) & ext_i;
 		
-		if internal_exttrig_reg(2) = '1' then
-			internal_exttrig_reg <= (others=>'0');
-		else
-			internal_exttrig_reg <= internal_exttrig_reg(1 downto 0) & internal_exttrig_edge;
-		end if;
+		--if internal_exttrig_reg(2) = '1' then
+		--	internal_exttrig_reg <= (others=>'0');
+		--else
+		internal_exttrig_reg <= internal_exttrig_reg(1 downto 0) & internal_exttrig_edge;
+		--end if;
 		
 		--//ext trigger delay to data_manager block:
 		case trig_delay_state is
@@ -93,7 +93,7 @@ begin
 				internal_delayed_exttrig <= '0';
 				internal_delayed_exttrig_counter <= (others=>'0');
 				
-				if internal_exttrig_reg(1) <= '1' then
+				if internal_exttrig_reg(1) = '1' then
 					trig_delay_state <= delay_st;
 				else
 					trig_delay_state <= idle_st;

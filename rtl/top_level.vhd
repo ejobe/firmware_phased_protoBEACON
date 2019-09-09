@@ -670,7 +670,7 @@ begin
 			pps 			<= SMA_out0 ;--cal_pulse_the_pulse;  
 			SMA_out1 	<= cal_pulse_rf_switch_ctl;--the_phased_trigger;
 			SMA_in		<= cal_pulse_the_pulse;--sync_from_master_device;
-			uC_dig(9)	<= '0'; --the_ext_trigger_out;  --
+			uC_dig(9)	<= external_trigger; --the_ext_trigger_out;  --
 			the_phased_trigger_from_master <= '0';
 			sync_to_slave_device <= '0';
 		when '0' => --//slave board
