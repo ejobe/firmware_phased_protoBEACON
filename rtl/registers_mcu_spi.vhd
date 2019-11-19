@@ -200,7 +200,7 @@ begin
 		registers_io(84) <= x"000000";   --// enable phased trigger to data manager (LSB=1 to enable)
 		registers_io(85) <= x"000000";   --// trigger verification mode (LSB=1 to enable)
 		
-		registers_io(88) <= x"000000";   --// timestamp mode select
+		registers_io(88) <= x"000001";   --// timestamp mode select
 		
 		registers_io(108) <= x"000000";  --//write LSB to update internal temp sensor; LSB+1 to enable[108]
 		
