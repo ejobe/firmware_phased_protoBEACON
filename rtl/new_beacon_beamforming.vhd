@@ -81,15 +81,12 @@ signal internal_pol_select 			: std_logic := '0';
 constant : internal_beam_number     : integer := 51;
 
 --//------------------------------------------------------------------
---//define beams here, using 'codes' and 'delays'
---//
---//2d beamforming:
---//horz delay steps = 5
---//vert delay steps = 4
---//total beams = 20
 
 type beam_delays_type is array (internal_beam_number-1 downto 0) of integer range -70 to 70;
 
+--COPIED in from Dan S. after adjusting delays around a zero-delayed mean. 
+-- NOTE that a (-) delay here means the signal should be advanced. A positive
+-- value indicates the signal should be delayed
 constant ant_0_delays : beam_delays_type :=
 (-23,-23,-23,-23,-23,-23,-23,-19,-15,-12,-10,-10,-6,-19,-12,-7,-2,2,4,7,12,14,-8,-1,6,12,
 17,21,24,30,37,43,46,48,0,64,8,13,17,22,25,29,32,34,39,46,51,56,60,63,65);
@@ -107,18 +104,6 @@ constant ant_3_delays : beam_delays_type :=
 (-1,3,-3,-8,-12,-14,5,-1,-6,-12,-17,-22,-21,10,6,-1,-7,-13,-19,-23,-23,-23,18,13,7,1,-6,
 -13,-20,-23,-23,-23,-23,-23,17,-23,11,8,3,-1,-7,-11,-16,-22,-23,-23,-23,-23,-23,-23,-23);
 
-
---type beam_delays_horz_type is array (4 downto 0) of integer range -10 to 10;
---constant beam_delays_horz : beam_delays_horz_type := (-4, -2, 0, 2, 4); 
-
---type beam_delays_vert_type is array (3 downto 0) of integer range -10 to 10;
---constant beam_delays_vert : beam_delays_vert_type := (-3, -1, 1, 3);
-
-----NO LONGER NEED THE "CODES", DELAYS ARE NOW FULLY SPECIFIED 11/19/2019
---//beam codes - one per antenna, depends on array geometry
---type beam_codes_type is array (3 downto 0) of integer range -8 to 8;
---constant beam_codes_horz : beam_codes_type := (-2,-1,1,2); --//kinda equal horizontal spacing
---constant beam_codes_vert : beam_codes_type := (-1,0,0,-1); --//two rows vertically
 
 --//coh. sums 
 type coh_sum_type is array (internal_beam_number,

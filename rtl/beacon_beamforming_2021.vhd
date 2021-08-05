@@ -49,7 +49,7 @@ use ieee.numeric_std.all;
 
 use work.defs.all;
 
-entity beacon_beamforming is
+entity beacon_beamforming_2021 is
 	generic(
 		ENABLE_BEAMFORMING : std_logic := '1'); --//compile-time flag
 	port(
@@ -65,9 +65,9 @@ entity beacon_beamforming is
 		beams_o			:	out	array_of_beams_type;   
 		sum_pow_o		:	out	sum_power_type);
 		
-end beacon_beamforming;
+end beacon_beamforming_2021;
 
-architecture rtl of beacon_beamforming is
+architecture rtl of beacon_beamforming_2021 is
 
 signal data_pipe_railed	:  full_data_type;  --//option to rail the 7-bit data at 5 bits in order to fit in beamformer
 signal buf_data_0 		: 	full_data_type;
@@ -102,27 +102,35 @@ signal internal_beam_enable 			: std_logic := '0';
 signal internal_pol_select 			: std_logic := '0';
 
 --//------------------------------------------------------------------
---//define beams here, using 'codes' and 'delays'
---//
---//2d beamforming:
---//horz delay steps = 5
---//vert delay steps = 4
---//total beams = 20
+--//------------------------------------------------------------------
+--//define beams here, total beams = 20
 
-type beam_delays_horz_type is array (4 downto 0) of integer range -24 to 24;
-constant beam_delays_horz : beam_delays_horz_type := (-4, -2, 0, 2, 4); 
-
-type beam_delays_vert_type is array (3 downto 0) of integer range -24 to 24;
-constant beam_delays_vert : beam_delays_vert_type := (-3, -1, 1, 3);
-
---//beam codes - one per antenna, depends on array geometry
-type beam_codes_type is array (3 downto 0) of integer range -24 to 24;
-constant beam_codes_horz : beam_codes_type := (-2,-1,1,2); --//kinda equal horizontal spacing
-constant beam_codes_vert : beam_codes_type := (-1,0,0,-1); --//two rows vertically
+type beam_delays_type is array(0 to 19, 0 to 3) of integer range -48 to 48;
+constant beam_delays : beam_delays_type := ( (0,10,0,-10), --0
+															(0,10,0,-10), --1
+															(0,10,0,-20), --2
+															(0,10,0,-10), --3
+															(0,10,0,-10), --4
+															(0,10,0,-10), --5
+															(0,10,0,-10), --6
+															(0,10,0,-10), --7
+															(0,10,0,-10), --8
+															(0,10,0,-10), --9
+															(0,10,0,-10), --10
+															(0,10,0,-10), --11
+															(0,10,0,-10), --12
+															(0,10,0,-10), --13
+															(0,10,0,-10), --14
+															(0,10,0,-10), --15
+															(0,10,0,-10), --16
+															(0,10,0,-10), --17
+															(0,10,0,-10), --18
+															(0,10,40,-20)); --19
+--//------------------------------------------------------------------
+--//------------------------------------------------------------------
 
 --//coh. sums 
-type coh_sum_type is array (beam_delays_horz'length downto 0,
-									beam_delays_vert'length downto 0,
+type coh_sum_type is array (19 downto 0,
 									2*define_serdes_factor*define_word_size-1 downto 0)
 									of std_logic_vector(define_beam_bits-1 downto 0);
 
@@ -274,16 +282,11 @@ begin
 				internal_beams(k)((i+1)*define_beam_bits-1 downto i*define_beam_bits) <= (others=>'0');
 			end loop;
 			
-			--//loop over horizontal beam delays
-			for hz in 0 to  beam_delays_horz'length-1 loop
-				--//loop over vertical beam delays
-				for vt in 0 to beam_delays_vert'length-1 loop
+			--//loop over beam delays
+			for hz in 0 to  19 loop
 					
-					coh_sum(hz, vt, i) <= (others=>'0');
-					coh_sum_horz(hz, vt, i) <= (others=>'0');
-					coh_sum_vert(hz, vt, i) <= (others=>'0');
+					coh_sum(hz, i) <= (others=>'0');
 
-				end loop;
 			end loop;	
 				
 		elsif rising_edge(clk_i) then
@@ -294,63 +297,36 @@ begin
 			--// resize data chunks from ADC before adding in order to get proper sign extension
 			--///////////////////////////////////////////////////////////////////////////////////
 			--
-			--//loop over horizontal beam delays
-			for hz in 0 to  beam_delays_horz'length-1 loop
-				--//loop over vertical beam delays
-				for vt in 0 to beam_delays_vert'length-1 loop
+			--//loop over  beam delays
+			for hz in 0 to  19 loop
 					
 					--//pipeline + flatten coherent sums to internal beams vector
-					internal_beams(hz * beam_delays_vert'length + vt)((i+1)*define_word_size-1 downto i*define_word_size) <= coh_sum(hz, vt, i);		
+					internal_beams(hz)((i+1)*define_word_size-1 downto i*define_word_size) <= coh_sum(hz, i);		
 						
 					--//protoBEACON: 8 antennas - 4 of each pol so Coh. sum made from 4 adc channels
 					--//
-					--// calculate antenna shift as such:
-					--//     coh_sum[horz_code (ant) * horz_delay (beam)] + coh_sum[vert_code (ant) * vert_delay (beam)]
+					coh_sum(hz, i) <= 
+						std_logic_vector(resize(signed(dat(0)(	(i+(beam_delays(hz,0) )) * 
+																			define_word_size+slice_hi-1 downto 
+																			(i+(beam_delays(hz,0) )) *
+																			define_word_size+slice_lo )),define_beam_bits)) +
+				
+						std_logic_vector(resize(signed(dat(1)(	(i+(beam_delays(hz,1) )) * 
+																			define_word_size+slice_hi-1 downto 
+																			(i+(beam_delays(hz,1) )) *
+																			define_word_size+slice_lo )),define_beam_bits)) +
+						--
+						std_logic_vector(resize(signed(dat(2)(	(i+(beam_delays(hz,2) )) * 
+																			define_word_size+slice_hi-1 downto 
+																			(i+(beam_delays(hz,2) )) *
+																			define_word_size+slice_lo )),define_beam_bits)) +
+						--
+						std_logic_vector(resize(signed(dat(3)( (i+(beam_delays(hz,3) )) * 
+																			define_word_size+slice_hi-1 downto 
+																			(i+(beam_delays(hz,3) )) *
+																			define_word_size+slice_lo )),define_beam_bits));
+					--
 					
-					coh_sum(hz, vt, i) <= coh_sum_horz(hz, vt, i) + coh_sum_vert(hz, vt, i);
-					--
-					coh_sum_horz (hz, vt, i) <= 
-						std_logic_vector(resize(signed(dat(0)(	(i+(beam_delays_horz(hz)*beam_codes_horz(0) )) * 
-																			define_word_size+slice_hi-1 downto 
-																			(i+(beam_delays_horz(hz)*beam_codes_horz(0) )) *
-																			define_word_size+slice_lo )),define_beam_bits)) +
-				
-						std_logic_vector(resize(signed(dat(1)(	(i+(beam_delays_horz(hz)*beam_codes_horz(1) )) * 
-																			define_word_size+slice_hi-1 downto 
-																			(i+(beam_delays_horz(hz)*beam_codes_horz(1) )) *
-																			define_word_size+slice_lo )),define_beam_bits)) +
-						--
-						std_logic_vector(resize(signed(dat(2)(	(i+(beam_delays_horz(hz)*beam_codes_horz(2))) * 
-																			define_word_size+slice_hi-1 downto 
-																			(i+(beam_delays_horz(hz)*beam_codes_horz(2) )) *
-																			define_word_size+slice_lo )),define_beam_bits)) +
-						--
-						std_logic_vector(resize(signed(dat(3)( (i+(beam_delays_horz(hz)*beam_codes_horz(3) )) * 
-																			define_word_size+slice_hi-1 downto 
-																			(i+(beam_delays_horz(hz)*beam_codes_horz(3) )) *
-																			define_word_size+slice_lo )),define_beam_bits));
-					--
-					coh_sum_vert (hz, vt, i) <= 						
-						std_logic_vector(resize(signed(dat(0)(	(i+(beam_delays_vert(vt)*beam_codes_vert(0))) * 
-																			define_word_size+slice_hi-1 downto 
-																			(i+( beam_delays_vert(vt)*beam_codes_vert(0))) *
-																			define_word_size+slice_lo )),define_beam_bits)) +
-				
-						std_logic_vector(resize(signed(dat(1)(	(i+(beam_delays_vert(vt)*beam_codes_vert(1))) * 
-																			define_word_size+slice_hi-1 downto 
-																			(i+(beam_delays_vert(vt)*beam_codes_vert(1))) *
-																			define_word_size+slice_lo )),define_beam_bits)) +
-						--
-						std_logic_vector(resize(signed(dat(2)(	(i+( beam_delays_vert(vt)*beam_codes_vert(2))) * 
-																			define_word_size+slice_hi-1 downto 
-																			(i+(beam_delays_vert(vt)*beam_codes_vert(2))) *
-																			define_word_size+slice_lo )),define_beam_bits)) +
-						--
-						std_logic_vector(resize(signed(dat(3)( (i+(beam_delays_vert(vt)*beam_codes_vert(3))) * 
-																			define_word_size+slice_hi-1 downto 
-																			(i+(beam_delays_vert(vt)*beam_codes_vert(3))) *
-																			define_word_size+slice_lo )),define_beam_bits));
-				end loop;
 			end loop;
 			
 		end if;

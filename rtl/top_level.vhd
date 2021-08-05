@@ -350,7 +350,7 @@ begin
 		rx_pll_reset_o		=> rx_pll_reset,
 		dat_valid_o			=> adc_data_valid);
 	--///////////////////////////////////////	
-	xBEAMFORMER : entity work.beacon_beamforming
+	xBEAMFORMER : entity work.beacon_beamforming_2021
 	generic map( ENABLE_BEAMFORMING => FIRMWARE_DEVICE)
 	port map(
 		rst_i			=> reset_global or reset_global_except_registers,
